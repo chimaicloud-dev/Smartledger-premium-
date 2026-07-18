@@ -559,6 +559,12 @@ components:
           type: string
         name:
           type: string
+        phone:
+          type: string
+        country:
+          type: string
+        dateOfBirth:
+          type: string
         experience:
           type: string
           enum: [beginner, experienced]
@@ -566,6 +572,9 @@ components:
         - email
         - password
         - name
+        - phone
+        - country
+        - dateOfBirth
         - experience
 
     LoginRequest:

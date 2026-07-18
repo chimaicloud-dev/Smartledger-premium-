@@ -35,15 +35,8 @@ export async function bootstrapAdmin(log?: { info: (...a: any[]) => void }): Pro
         log?.info({ email: adminEmail }, "admin.bootstrap.byEnv");
       }
     }
-    const existingAdmins = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.role, "admin")).limit(1);
-    if (existingAdmins.length === 0) {
-      const all = await db.select().from(usersTable);
-      if (all.length > 0) {
-        const oldest = all.reduce((a, b) => (a.id < b.id ? a : b));
-        await db.update(usersTable).set({ role: "admin" }).where(eq(usersTable.id, oldest.id));
-        log?.info({ id: oldest.id, email: oldest.email }, "admin.bootstrap.firstUser");
-      }
-    }
+    // No automatic promotion of regular users to admin.
+    // Admins must be set explicitly via the ADMIN_EMAIL environment variable.
   } catch (err) {
     log?.info({ err }, "admin.bootstrap.failed");
   }

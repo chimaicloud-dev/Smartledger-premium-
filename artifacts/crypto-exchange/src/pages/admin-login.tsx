@@ -34,7 +34,7 @@ export default function AdminLoginPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Invalid credentials");
-      if (data.role !== "admin") {
+      if (data.user?.role !== "admin") {
         await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
         throw new Error("Access denied. This portal is for administrators only.");
       }
