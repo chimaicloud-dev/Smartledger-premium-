@@ -204,6 +204,8 @@ router.post("/transactions/:id/approve", async (req, res) => {
   }
 
   if (tx.type === "deposit") {
+    // Deposits are now auto-credited on submission, so approval is a no-op for balance.
+    // Kept for admin visibility / manual override of old pending deposits.
     if (tx.symbol && tx.amount && tx.amount > 0) {
       const sym = tx.symbol;
       const price = tx.price ?? COIN_INFO[sym]?.price ?? 0;

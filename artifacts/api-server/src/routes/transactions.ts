@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request } from "express";
 import { db, usersTable, holdingsTable, transactionsTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { BuyCryptoBody, SellCryptoBody, DepositBody, WithdrawBody, ConvertCryptoBody } from "@workspace/api-zod";
 import { fetchForexPrices, getForexAssetMeta } from "../lib/forex";
 import { COIN_INFO } from "../lib/coins";
@@ -78,7 +78,7 @@ router.post("/buy", async (req, res) => {
     return;
   }
 
-  const price = assetInfo.price * (1 + (Math.random() - 0.5) * 0.005);
+  const price = assetInfo.price;
   const coinAmount = usdAmount / price;
   const sym = symbol.toUpperCase();
   const coinName = assetInfo.name;
@@ -156,7 +156,7 @@ router.post("/sell", async (req, res) => {
   }
 
   const sym = symbol.toUpperCase();
-  const price = assetInfo.price * (1 + (Math.random() - 0.5) * 0.005);
+  const price = assetInfo.price;
   const coinAmount = usdAmount / price;
 
   const [holding] = await db
@@ -220,7 +220,7 @@ router.post("/deposit", async (req, res) => {
   const { amount, symbol } = parsed.data;
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.session.userId)).limit(1);
 
-  // Per-coin deposit: requires admin approval before crediting holdings
+  // Per-coin deposit: immediately credit holdings
   if (symbol) {
     const sym = symbol.toUpperCase();
     const assetInfo = await resolveAssetPrice(req, sym);
@@ -232,6 +232,32 @@ router.post("/deposit", async (req, res) => {
     const coinAmount = amount;
     const usdValue = coinAmount * assetInfo.price;
 
+    // Credit holdings immediately
+    const [existing] = await db
+      .select()
+      .from(holdingsTable)
+      .where(and(eq(holdingsTable.userId, user.id), eq(holdingsTable.symbol, sym)))
+      .limit(1);
+
+    if (existing) {
+      const newAmount = existing.amount + coinAmount;
+      const newAvg = newAmount > 0
+        ? (existing.avgBuyPrice * existing.amount + assetInfo.price * coinAmount) / newAmount
+        : assetInfo.price;
+      await db
+        .update(holdingsTable)
+        .set({ amount: newAmount, avgBuyPrice: newAvg, updatedAt: new Date() })
+        .where(eq(holdingsTable.id, existing.id));
+    } else {
+      await db.insert(holdingsTable).values({
+        userId: user.id,
+        coin: assetInfo.name,
+        symbol: sym,
+        amount: coinAmount,
+        avgBuyPrice: assetInfo.price,
+      });
+    }
+
     const [tx] = await db
       .insert(transactionsTable)
       .values({
@@ -242,11 +268,11 @@ router.post("/deposit", async (req, res) => {
         amount: coinAmount,
         usdAmount: usdValue,
         price: assetInfo.price,
-        status: "pending",
+        status: "completed",
       })
       .returning();
 
-    req.log.info({ userId: user.id, symbol: sym, coinAmount }, "deposit.pending");
+    req.log.info({ userId: user.id, symbol: sym, coinAmount }, "deposit.credited");
 
     res.json({
       id: tx.id,
@@ -262,14 +288,19 @@ router.post("/deposit", async (req, res) => {
     return;
   }
 
-  // Fiat deposit: pending until admin approval
+  // Fiat deposit: immediately credit USD balance
+  await db
+    .update(usersTable)
+    .set({ usdBalance: sql`${usersTable.usdBalance} + ${amount}` })
+    .where(eq(usersTable.id, user.id));
+
   const [tx] = await db
     .insert(transactionsTable)
     .values({
       userId: user.id,
       type: "deposit",
       usdAmount: amount,
-      status: "pending",
+      status: "completed",
     })
     .returning();
 

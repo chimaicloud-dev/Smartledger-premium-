@@ -78,10 +78,6 @@ async function fetchYahooQuote(yahooSymbol: string): Promise<{ price: number; pr
   }
 }
 
-function jitter(base: number): number {
-  return base * (1 + (Math.random() - 0.5) * 0.004);
-}
-
 export async function fetchForexPrices(req: Request): Promise<ForexRow[]> {
   const now = Date.now();
   if (cache && now - cache.ts < CACHE_MS) return cache.data;
@@ -91,7 +87,7 @@ export async function fetchForexPrices(req: Request): Promise<ForexRow[]> {
       const live = await fetchYahooQuote(a.yahooSymbol);
       if (!live) {
         req.log.warn({ symbol: a.symbol }, "forex live fetch failed, using fallback");
-        const price = jitter(a.fallback);
+        const price = a.fallback;
         return {
           symbol: a.symbol,
           name: a.name,
