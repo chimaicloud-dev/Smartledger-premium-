@@ -21,6 +21,9 @@ export const RegisterBody = zod.object({
   email: zod.string(),
   password: zod.string(),
   name: zod.string(),
+  phone: zod.string(),
+  country: zod.string(),
+  dateOfBirth: zod.string(),
   experience: zod.enum(["beginner", "experienced"]),
 });
 

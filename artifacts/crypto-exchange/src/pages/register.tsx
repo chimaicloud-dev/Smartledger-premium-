@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { PublicLayout } from "@/components/layout";
@@ -7,39 +7,88 @@ import { motion } from "framer-motion";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertCircle, CheckCircle2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+const COUNTRIES = [
+  "Afghanistan","Albania","Algeria","Andorra","Angola","Antigua and Barbuda","Argentina","Armenia","Australia","Austria",
+  "Azerbaijan","Bahamas","Bahrain","Bangladesh","Barbados","Belarus","Belgium","Belize","Benin","Bhutan","Bolivia",
+  "Bosnia and Herzegovina","Botswana","Brazil","Brunei","Bulgaria","Burkina Faso","Burundi","Cabo Verde","Cambodia",
+  "Cameroon","Canada","Central African Republic","Chad","Chile","China","Colombia","Comoros","Congo","Costa Rica",
+  "Croatia","Cuba","Cyprus","Czech Republic","Denmark","Djibouti","Dominica","Dominican Republic","Ecuador","Egypt",
+  "El Salvador","Equatorial Guinea","Eritrea","Estonia","Eswatini","Ethiopia","Fiji","Finland","France","Gabon",
+  "Gambia","Georgia","Germany","Ghana","Greece","Grenada","Guatemala","Guinea","Guinea-Bissau","Guyana","Haiti",
+  "Honduras","Hungary","Iceland","India","Indonesia","Iran","Iraq","Ireland","Israel","Italy","Jamaica","Japan",
+  "Jordan","Kazakhstan","Kenya","Kiribati","Kuwait","Kyrgyzstan","Laos","Latvia","Lebanon","Lesotho","Liberia",
+  "Libya","Liechtenstein","Lithuania","Luxembourg","Madagascar","Malawi","Malaysia","Maldives","Mali","Malta",
+  "Marshall Islands","Mauritania","Mauritius","Mexico","Micronesia","Moldova","Monaco","Mongolia","Montenegro",
+  "Morocco","Mozambique","Myanmar","Namibia","Nauru","Nepal","Netherlands","New Zealand","Nicaragua","Niger",
+  "Nigeria","North Korea","North Macedonia","Norway","Oman","Pakistan","Palau","Palestine","Panama","Papua New Guinea",
+  "Paraguay","Peru","Philippines","Poland","Portugal","Qatar","Romania","Russia","Rwanda","Saint Kitts and Nevis",
+  "Saint Lucia","Saint Vincent and the Grenadines","Samoa","San Marino","Sao Tome and Principe","Saudi Arabia",
+  "Senegal","Serbia","Seychelles","Sierra Leone","Singapore","Slovakia","Slovenia","Solomon Islands","Somalia",
+  "South Africa","South Korea","South Sudan","Spain","Sri Lanka","Sudan","Suriname","Sweden","Switzerland","Syria",
+  "Taiwan","Tajikistan","Tanzania","Thailand","Timor-Leste","Togo","Tonga","Trinidad and Tobago","Tunisia","Turkey",
+  "Turkmenistan","Tuvalu","Uganda","Ukraine","United Arab Emirates","United Kingdom","United States","Uruguay",
+  "Uzbekistan","Vanuatu","Vatican City","Venezuela","Vietnam","Yemen","Zambia","Zimbabwe",
+];
+
 const registerSchema = z.object({
+  name: z.string().min(2, "Full name required"),
   email: z.string().email("Valid email required"),
-  password: z.string().min(6, "At least 6 characters"),
-  name: z.string().min(2, "Name required"),
+  phone: z.string().min(7, "Valid phone number required").regex(/^\+?[0-9\s\-().]+$/, "Invalid phone format"),
+  country: z.string().min(1, "Country required"),
+  dateOfBirth: z.string().min(1, "Date of birth required").refine((val) => {
+    const dob = new Date(val);
+    const today = new Date();
+    const age = today.getFullYear() - dob.getFullYear();
+    return age >= 18;
+  }, "You must be at least 18 years old"),
+  password: z.string().min(8, "At least 8 characters"),
+  confirmPassword: z.string(),
   experience: z.enum(["beginner", "experienced"]),
+}).refine((d) => d.password === d.confirmPassword, {
+  message: "Passwords do not match",
+  path: ["confirmPassword"],
 });
 
 type RegisterForm = z.infer<typeof registerSchema>;
 
+const STEPS = ["Personal Info", "Location", "Security", "Experience"];
+
 export default function RegisterPage() {
   const { register: registerUser, isRegisterPending } = useAuth();
   const [error, setError] = useState<string | null>(null);
-  
-  // Extract level from query params
+  const [step, setStep] = useState(0);
+
   const searchParams = new URLSearchParams(window.location.search);
   const defaultLevel = searchParams.get("level") === "experienced" ? "experienced" : "beginner";
 
-  const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<RegisterForm>({
+  const { register, handleSubmit, watch, setValue, trigger, formState: { errors } } = useForm<RegisterForm>({
     resolver: zodResolver(registerSchema),
-    defaultValues: {
-      experience: defaultLevel as "beginner" | "experienced",
-    }
+    defaultValues: { experience: defaultLevel as "beginner" | "experienced" },
+    mode: "onChange",
   });
 
   const selectedExperience = watch("experience");
 
+  const stepFields: (keyof RegisterForm)[][] = [
+    ["name", "email"],
+    ["phone", "country", "dateOfBirth"],
+    ["password", "confirmPassword"],
+    ["experience"],
+  ];
+
+  const nextStep = async () => {
+    const valid = await trigger(stepFields[step]);
+    if (valid) setStep((s) => s + 1);
+  };
+
   const onSubmit = async (data: RegisterForm) => {
     try {
       setError(null);
-      await registerUser(data);
+      const { confirmPassword, ...payload } = data;
+      await registerUser(payload as any);
     } catch (err: any) {
       setError(err.message || "Failed to register. Please try again.");
     }
@@ -48,15 +97,32 @@ export default function RegisterPage() {
   return (
     <PublicLayout>
       <div className="flex-1 flex items-center justify-center p-6 py-12">
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-md"
+          className="w-full max-w-lg"
         >
           <Card className="p-8 backdrop-blur-xl bg-card/90">
+            {/* Header */}
             <div className="text-center mb-8">
               <h1 className="text-3xl font-display font-bold text-foreground">Create Account</h1>
               <p className="text-muted-foreground mt-2">Start your crypto journey today</p>
+            </div>
+
+            {/* Step indicator */}
+            <div className="flex items-center gap-2 mb-8">
+              {STEPS.map((label, i) => (
+                <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                  <div className={cn(
+                    "h-1.5 w-full rounded-full transition-all duration-300",
+                    i <= step ? "bg-primary" : "bg-border"
+                  )} />
+                  <span className={cn(
+                    "text-[10px] font-medium transition-colors",
+                    i === step ? "text-primary" : "text-muted-foreground"
+                  )}>{label}</span>
+                </div>
+              ))}
             </div>
 
             {error && (
@@ -66,58 +132,128 @@ export default function RegisterPage() {
               </div>
             )}
 
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground ml-1">Full Name</label>
-                <Input {...register("name")} />
-                {errors.name && <p className="text-destructive text-sm ml-1">{errors.name.message}</p>}
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground ml-1">Email</label>
-                <Input {...register("email")} type="email" />
-                {errors.email && <p className="text-destructive text-sm ml-1">{errors.email.message}</p>}
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground ml-1">Password</label>
-                <Input {...register("password")} type="password" />
-                {errors.password && <p className="text-destructive text-sm ml-1">{errors.password.message}</p>}
-              </div>
-
-              <div className="space-y-3 pt-2">
-                <label className="text-sm font-medium text-foreground ml-1">Experience Level</label>
-                <div className="grid grid-cols-2 gap-3">
-                  <div 
-                    onClick={() => setValue("experience", "beginner")}
-                    className={cn(
-                      "p-4 rounded-xl border-2 cursor-pointer transition-all flex flex-col items-center gap-2 text-center",
-                      selectedExperience === "beginner" 
-                        ? "border-primary bg-primary/10 text-primary" 
-                        : "border-border hover:border-primary/50 text-muted-foreground"
-                    )}
-                  >
-                    <CheckCircle2 className={cn("w-6 h-6", selectedExperience === "beginner" ? "opacity-100" : "opacity-0")} />
-                    <span className="font-semibold">Beginner</span>
+            <form onSubmit={handleSubmit(onSubmit)}>
+              {/* Step 0 — Personal Info */}
+              {step === 0 && (
+                <motion.div key="step0" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-5">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground ml-1">Full Legal Name</label>
+                    <Input {...register("name")} placeholder="John Doe" />
+                    {errors.name && <p className="text-destructive text-sm ml-1">{errors.name.message}</p>}
                   </div>
-                  <div 
-                    onClick={() => setValue("experience", "experienced")}
-                    className={cn(
-                      "p-4 rounded-xl border-2 cursor-pointer transition-all flex flex-col items-center gap-2 text-center",
-                      selectedExperience === "experienced" 
-                        ? "border-accent bg-accent/10 text-accent" 
-                        : "border-border hover:border-accent/50 text-muted-foreground"
-                    )}
-                  >
-                    <CheckCircle2 className={cn("w-6 h-6", selectedExperience === "experienced" ? "opacity-100" : "opacity-0")} />
-                    <span className="font-semibold">Experienced</span>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground ml-1">Email Address</label>
+                    <Input {...register("email")} type="email" placeholder="john@example.com" />
+                    {errors.email && <p className="text-destructive text-sm ml-1">{errors.email.message}</p>}
                   </div>
-                </div>
-              </div>
+                </motion.div>
+              )}
 
-              <Button type="submit" className="w-full mt-6" size="lg" disabled={isRegisterPending}>
-                {isRegisterPending ? "Creating Account..." : "Create Account"}
-              </Button>
+              {/* Step 1 — Location & Identity */}
+              {step === 1 && (
+                <motion.div key="step1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-5">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground ml-1">Phone Number</label>
+                    <Input {...register("phone")} type="tel" placeholder="+1 555 000 0000" />
+                    {errors.phone && <p className="text-destructive text-sm ml-1">{errors.phone.message}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground ml-1">Country of Residence</label>
+                    <div className="relative">
+                      <select
+                        {...register("country")}
+                        className="w-full appearance-none px-4 py-3 pr-10 rounded-xl bg-input border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm transition-all"
+                      >
+                        <option value="">Select your country</option>
+                        {COUNTRIES.map((c) => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    </div>
+                    {errors.country && <p className="text-destructive text-sm ml-1">{errors.country.message}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground ml-1">Date of Birth</label>
+                    <Input {...register("dateOfBirth")} type="date" max={new Date(new Date().setFullYear(new Date().getFullYear()-18)).toISOString().split("T")[0]} />
+                    {errors.dateOfBirth && <p className="text-destructive text-sm ml-1">{errors.dateOfBirth.message}</p>}
+                    <p className="text-xs text-muted-foreground ml-1">You must be at least 18 years old to register.</p>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Step 2 — Security */}
+              {step === 2 && (
+                <motion.div key="step2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-5">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground ml-1">Password</label>
+                    <Input {...register("password")} type="password" placeholder="At least 8 characters" />
+                    {errors.password && <p className="text-destructive text-sm ml-1">{errors.password.message}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground ml-1">Confirm Password</label>
+                    <Input {...register("confirmPassword")} type="password" placeholder="Repeat your password" />
+                    {errors.confirmPassword && <p className="text-destructive text-sm ml-1">{errors.confirmPassword.message}</p>}
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Step 3 — Experience */}
+              {step === 3 && (
+                <motion.div key="step3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-5">
+                  <p className="text-sm text-muted-foreground">What is your experience level with crypto trading?</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div
+                      onClick={() => setValue("experience", "beginner")}
+                      className={cn(
+                        "p-5 rounded-xl border-2 cursor-pointer transition-all flex flex-col items-center gap-3 text-center",
+                        selectedExperience === "beginner"
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border hover:border-primary/50 text-muted-foreground"
+                      )}
+                    >
+                      <CheckCircle2 className={cn("w-6 h-6", selectedExperience === "beginner" ? "opacity-100" : "opacity-20")} />
+                      <div>
+                        <p className="font-semibold text-sm">Beginner</p>
+                        <p className="text-xs opacity-70 mt-0.5">New to crypto</p>
+                      </div>
+                    </div>
+                    <div
+                      onClick={() => setValue("experience", "experienced")}
+                      className={cn(
+                        "p-5 rounded-xl border-2 cursor-pointer transition-all flex flex-col items-center gap-3 text-center",
+                        selectedExperience === "experienced"
+                          ? "border-accent bg-accent/10 text-accent"
+                          : "border-border hover:border-accent/50 text-muted-foreground"
+                      )}
+                    >
+                      <CheckCircle2 className={cn("w-6 h-6", selectedExperience === "experienced" ? "opacity-100" : "opacity-20")} />
+                      <div>
+                        <p className="font-semibold text-sm">Experienced</p>
+                        <p className="text-xs opacity-70 mt-0.5">I've traded before</p>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Navigation */}
+              <div className={cn("flex gap-3 mt-8", step > 0 ? "justify-between" : "justify-end")}>
+                {step > 0 && (
+                  <Button type="button" variant="outline" onClick={() => setStep((s) => s - 1)}>
+                    Back
+                  </Button>
+                )}
+                {step < STEPS.length - 1 ? (
+                  <Button type="button" onClick={nextStep}>
+                    Continue
+                  </Button>
+                ) : (
+                  <Button type="submit" disabled={isRegisterPending} className="px-8">
+                    {isRegisterPending ? "Creating Account..." : "Create Account"}
+                  </Button>
+                )}
+              </div>
             </form>
 
             <div className="mt-8 text-center text-sm text-muted-foreground">

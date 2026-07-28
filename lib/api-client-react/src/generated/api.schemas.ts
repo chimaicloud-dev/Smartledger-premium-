@@ -29,6 +29,9 @@ export interface RegisterRequest {
   email: string;
   password: string;
   name: string;
+  phone: string;
+  country: string;
+  dateOfBirth: string;
   experience: RegisterRequestExperience;
 }
 

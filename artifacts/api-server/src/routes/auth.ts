@@ -20,7 +20,7 @@ router.post("/register", async (req, res) => {
     return;
   }
 
-  const { email, password, name, experience } = parsed.data;
+  const { email, password, name, phone, country, dateOfBirth, experience } = parsed.data;
 
   const existing = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
   if (existing.length > 0) {
@@ -33,6 +33,9 @@ router.post("/register", async (req, res) => {
     email,
     password: hashedPassword,
     name,
+    phone,
+    country,
+    dateOfBirth,
     experience,
     usdBalance: 0,
   }).returning();
