@@ -19,6 +19,33 @@ const DEFAULTS = {
 export default function LandingPage() {
   const [cfg, setCfg] = useState(DEFAULTS);
 
+  // Smartsupp live chat — only on the home page
+  useEffect(() => {
+    (window as any)._smartsupp = (window as any)._smartsupp || {};
+    (window as any)._smartsupp.key = "bbc8e7b9068b4286776dd813f1a59eca0f61a5c9";
+
+    const existing = document.getElementById("smartsupp-script");
+    if (existing) return;
+
+    const script = document.createElement("script");
+    script.id = "smartsupp-script";
+    script.type = "text/javascript";
+    script.charset = "utf-8";
+    script.async = true;
+    script.src = "https://www.smartsuppchat.com/loader.js?";
+    document.head.appendChild(script);
+
+    return () => {
+      // Remove script and widget on unmount
+      const el = document.getElementById("smartsupp-script");
+      el?.parentNode?.removeChild(el);
+      const widget = document.getElementById("smartsupp-widget-container");
+      widget?.parentNode?.removeChild(widget);
+      delete (window as any).smartsupp;
+      delete (window as any)._smartsupp;
+    };
+  }, []);
+
   useEffect(() => {
     fetch("/api/settings/public")
       .then((r) => r.json())
