@@ -1,4 +1,4 @@
-import app from "./app";
+import app, { sessionStore } from "./app";
 import { logger } from "./lib/logger";
 import { bootstrapAdmin } from "./lib/admin";
 import { pool } from "@workspace/db";
@@ -52,5 +52,8 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
-  void waitForDatabase().then(() => bootstrapAdmin(logger));
+  void waitForDatabase().then(async () => {
+    await sessionStore.init();
+    await bootstrapAdmin(logger);
+  });
 });

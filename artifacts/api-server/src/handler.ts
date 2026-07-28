@@ -1,4 +1,4 @@
-import app from "./app";
+import app, { sessionStore } from "./app";
 import { pool } from "@workspace/db";
 import { bootstrapAdmin } from "./lib/admin";
 import { logger } from "./lib/logger";
@@ -25,6 +25,9 @@ async function init() {
       }
     }
   }
+  await sessionStore.init().catch((err) => {
+    logger.error({ err }, "session.store.init.failed");
+  });
   await bootstrapAdmin(logger).catch((err) => {
     logger.error({ err }, "admin.bootstrap.failed");
   });

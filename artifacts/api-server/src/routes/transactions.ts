@@ -399,7 +399,7 @@ router.post("/withdraw", async (req, res) => {
     return;
   }
 
-  const { amount } = parsed.data;
+  const { amount, method, address } = parsed.data;
 
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.session.userId)).limit(1);
   if (!user || user.usdBalance < amount) {
@@ -414,6 +414,8 @@ router.post("/withdraw", async (req, res) => {
     .values({
       userId: user.id,
       type: "withdraw",
+      coin: method,
+      symbol: address ?? null,
       usdAmount: amount,
       status: "pending",
     })
