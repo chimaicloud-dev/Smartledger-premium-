@@ -3,11 +3,10 @@ import { pool } from "@workspace/db";
 import { bootstrapAdmin } from "./lib/admin";
 import { logger } from "./lib/logger";
 
-let initialized = false;
+// Single shared init promise — all requests wait for it on cold start
+let initPromise: Promise<void> | null = null;
 
-async function init() {
-  if (initialized) return;
-  initialized = true;
+async function init(): Promise<void> {
   for (let attempt = 1; attempt <= 10; attempt++) {
     try {
       const client = await pool.connect();
@@ -17,7 +16,7 @@ async function init() {
       break;
     } catch (err: any) {
       if (attempt < 10) {
-        const delay = 2000 * attempt;
+        const delay = Math.min(2000 * attempt, 8000);
         logger.warn({ attempt, delay, msg: err?.message }, "db.waking");
         await new Promise((r) => setTimeout(r, delay));
       } else {
@@ -33,6 +32,16 @@ async function init() {
   });
 }
 
-void init();
-
-export default app;
+// Export a handler that guarantees init is complete before Express handles the request
+export default function handler(req: any, res: any): void {
+  if (!initPromise) initPromise = init();
+  initPromise
+    .then(() => app(req, res))
+    .catch((err) => {
+      logger.error({ err }, "init.failed");
+      if (!res.headersSent) {
+        res.statusCode = 503;
+        res.end(JSON.stringify({ error: "Service starting, please retry" }));
+      }
+    });
+}
