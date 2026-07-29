@@ -220,7 +220,7 @@ router.post("/deposit", async (req, res) => {
   const { amount, symbol } = parsed.data;
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.session.userId)).limit(1);
 
-  // Per-coin deposit: immediately credit holdings
+  // Per-coin deposit: pending until admin approves
   if (symbol) {
     const sym = symbol.toUpperCase();
     const assetInfo = await resolveAssetPrice(req, sym);
@@ -232,32 +232,6 @@ router.post("/deposit", async (req, res) => {
     const coinAmount = amount;
     const usdValue = coinAmount * assetInfo.price;
 
-    // Credit holdings immediately
-    const [existing] = await db
-      .select()
-      .from(holdingsTable)
-      .where(and(eq(holdingsTable.userId, user.id), eq(holdingsTable.symbol, sym)))
-      .limit(1);
-
-    if (existing) {
-      const newAmount = existing.amount + coinAmount;
-      const newAvg = newAmount > 0
-        ? (existing.avgBuyPrice * existing.amount + assetInfo.price * coinAmount) / newAmount
-        : assetInfo.price;
-      await db
-        .update(holdingsTable)
-        .set({ amount: newAmount, avgBuyPrice: newAvg, updatedAt: new Date() })
-        .where(eq(holdingsTable.id, existing.id));
-    } else {
-      await db.insert(holdingsTable).values({
-        userId: user.id,
-        coin: assetInfo.name,
-        symbol: sym,
-        amount: coinAmount,
-        avgBuyPrice: assetInfo.price,
-      });
-    }
-
     const [tx] = await db
       .insert(transactionsTable)
       .values({
@@ -268,11 +242,11 @@ router.post("/deposit", async (req, res) => {
         amount: coinAmount,
         usdAmount: usdValue,
         price: assetInfo.price,
-        status: "completed",
+        status: "pending",
       })
       .returning();
 
-    req.log.info({ userId: user.id, symbol: sym, coinAmount }, "deposit.credited");
+    req.log.info({ userId: user.id, symbol: sym, coinAmount }, "deposit.pending");
 
     res.json({
       id: tx.id,
@@ -288,19 +262,14 @@ router.post("/deposit", async (req, res) => {
     return;
   }
 
-  // Fiat deposit: immediately credit USD balance
-  await db
-    .update(usersTable)
-    .set({ usdBalance: sql`${usersTable.usdBalance} + ${amount}` })
-    .where(eq(usersTable.id, user.id));
-
+  // Fiat deposit: pending until admin approves
   const [tx] = await db
     .insert(transactionsTable)
     .values({
       userId: user.id,
       type: "deposit",
       usdAmount: amount,
-      status: "completed",
+      status: "pending",
     })
     .returning();
 

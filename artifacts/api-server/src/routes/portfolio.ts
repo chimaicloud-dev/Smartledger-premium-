@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { db, usersTable, holdingsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { db, usersTable, holdingsTable, transactionsTable } from "@workspace/db";
+import { and, eq, sql } from "drizzle-orm";
 import { COIN_INFO as CURRENT_PRICES } from "../lib/coins";
 
 declare module "express-session" {
@@ -25,11 +25,24 @@ router.get("/", async (req, res) => {
 
   const holdings = await db.select().from(holdingsTable).where(eq(holdingsTable.userId, req.session.userId));
 
+  // Sum all pending deposit USD amounts for this user
+  const pendingResult = await db
+    .select({ total: sql<number>`COALESCE(SUM(usd_amount), 0)` })
+    .from(transactionsTable)
+    .where(
+      and(
+        eq(transactionsTable.userId, req.session.userId!),
+        eq(transactionsTable.type, "deposit"),
+        eq(transactionsTable.status, "pending")
+      )
+    );
+  const pendingDeposits = Number(pendingResult[0]?.total ?? 0);
+
   const holdingsWithValue = holdings
     .filter((h) => h.amount > 0)
     .map((h) => {
       const market = CURRENT_PRICES[h.symbol] || { name: h.coin, price: h.avgBuyPrice };
-      const currentPrice = market.price * (1 + (Math.random() - 0.5) * 0.02);
+      const currentPrice = market.price;
       const currentValue = h.amount * currentPrice;
       const costBasis = h.amount * h.avgBuyPrice;
       const pnl = currentValue - costBasis;
@@ -51,6 +64,7 @@ router.get("/", async (req, res) => {
 
   res.json({
     usdBalance: user.usdBalance,
+    pendingDeposits,
     totalValue,
     holdings: holdingsWithValue,
   });

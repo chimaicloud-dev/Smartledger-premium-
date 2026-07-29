@@ -87,8 +87,15 @@ export default function DashboardOverview() {
                 {formatCurrency(portfolio?.totalValue || 0)}
               </div>
             )}
-            <div className="flex items-center gap-4 text-sm">
+            <div className="flex flex-col gap-1.5 text-sm">
               <span className="text-muted-foreground">Available USD: <span className="text-foreground mono-nums font-medium">{formatCurrency(user.usdBalance)}</span></span>
+              {(portfolio?.pendingDeposits ?? 0) > 0 && (
+                <span className="flex items-center gap-1.5 text-muted-foreground">
+                  Pending Deposit:&nbsp;
+                  <span className="mono-nums font-medium text-yellow-400">{formatCurrency(portfolio!.pendingDeposits)}</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-yellow-500/10 border border-yellow-500/25 text-yellow-400 font-semibold uppercase tracking-wide">Awaiting Approval</span>
+                </span>
+              )}
             </div>
           </Card>
 
