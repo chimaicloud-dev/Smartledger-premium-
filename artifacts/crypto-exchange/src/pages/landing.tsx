@@ -21,28 +21,34 @@ export default function LandingPage() {
 
   // Smartsupp live chat — only on the home page
   useEffect(() => {
-    (window as any)._smartsupp = (window as any)._smartsupp || {};
+    if (!(window as any)._smartsupp) {
+      (window as any)._smartsupp = {};
+    }
     (window as any)._smartsupp.key = "bbc8e7b9068b4286776dd813f1a59eca0f61a5c9";
 
-    const existing = document.getElementById("smartsupp-script");
-    if (existing) return;
-
-    const script = document.createElement("script");
-    script.id = "smartsupp-script";
-    script.type = "text/javascript";
-    script.charset = "utf-8";
-    script.async = true;
-    script.src = "https://www.smartsuppchat.com/loader.js?";
-    document.head.appendChild(script);
+    if (!document.getElementById("smartsupp-script")) {
+      const script = document.createElement("script");
+      script.id = "smartsupp-script";
+      script.type = "text/javascript";
+      script.charset = "utf-8";
+      script.async = true;
+      script.src = "https://www.smartsuppchat.com/loader.js?";
+      document.head.appendChild(script);
+    }
 
     return () => {
-      // Remove script and widget on unmount
-      const el = document.getElementById("smartsupp-script");
-      el?.parentNode?.removeChild(el);
-      const widget = document.getElementById("smartsupp-widget-container");
-      widget?.parentNode?.removeChild(widget);
-      delete (window as any).smartsupp;
-      delete (window as any)._smartsupp;
+      // Hide the widget when navigating away; don't delete non-configurable globals
+      try {
+        const el = document.getElementById("smartsupp-script");
+        el?.parentNode?.removeChild(el);
+        document.getElementById("smartsupp-widget-container")?.remove();
+        document.getElementById("smartsupp-box")?.remove();
+        if ((window as any).smartsupp) {
+          (window as any).smartsupp("chat:hide");
+        }
+      } catch (_) {
+        // ignore cleanup errors
+      }
     };
   }, []);
 
