@@ -1278,9 +1278,6 @@ export default function InvestPage() {
               })}
             </div>
 
-            <p className="text-center text-xs text-muted-foreground pb-2">
-              Daily returns are credited to your USDT balance every 24 hours. Capital is locked for 30 days and released automatically at maturity. Invest responsibly.
-            </p>
           </div>
         )}
 
