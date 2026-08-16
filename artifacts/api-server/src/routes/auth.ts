@@ -1,10 +1,11 @@
 import { Router, type IRouter } from "express";
 import bcrypt from "bcryptjs";
+import crypto from "node:crypto";
 import { db } from "@workspace/db";
-import { usersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { usersTable, passwordResetTokensTable } from "@workspace/db";
+import { eq, and, gt, isNull } from "drizzle-orm";
 import { RegisterBody, LoginBody } from "@workspace/api-zod";
-import { sendWelcomeEmail } from "../lib/email";
+import { sendWelcomeEmail, sendPasswordResetEmail } from "../lib/email";
 
 declare module "express-session" {
   interface SessionData {
@@ -183,6 +184,105 @@ router.post("/kyc/verify", async (req, res) => {
     status: updated.status,
     createdAt: updated.createdAt.toISOString(),
   });
+});
+
+// ---------- Forgot Password ----------
+
+router.post("/forgot-password", async (req, res) => {
+  const { email } = (req.body ?? {}) as { email?: string };
+  if (!email || typeof email !== "string") {
+    res.status(400).json({ error: "Email is required" });
+    return;
+  }
+
+  // Always respond with success to avoid leaking which emails are registered
+  const [user] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.email, email.trim().toLowerCase()))
+    .limit(1);
+
+  if (user) {
+    const token = crypto.randomBytes(32).toString("hex");
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    await db.insert(passwordResetTokensTable).values({
+      userId: user.id,
+      token,
+      expiresAt,
+    });
+
+    // Build the reset URL exclusively from server-controlled configuration —
+    // never from caller-supplied Origin / Referer headers (host-header injection risk).
+    const frontendBase =
+      process.env.FRONTEND_URL?.replace(/\/+$/, "") ||
+      (process.env.REPLIT_DEV_DOMAIN
+        ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+        : "http://localhost:5173");
+
+    const resetUrl = `${frontendBase}/reset-password?token=${encodeURIComponent(token)}`;
+    sendPasswordResetEmail(user.email, resetUrl);
+  }
+
+  res.json({ message: "If an account with that email exists, a reset link has been sent." });
+});
+
+// ---------- Reset Password ----------
+
+router.post("/reset-password", async (req, res) => {
+  const { token, password } = (req.body ?? {}) as { token?: string; password?: string };
+
+  if (!token || typeof token !== "string") {
+    res.status(400).json({ error: "Reset token is required" });
+    return;
+  }
+  if (!password || typeof password !== "string" || password.length < 6) {
+    res.status(400).json({ error: "Password must be at least 6 characters" });
+    return;
+  }
+
+  const hashedPassword = await bcrypt.hash(password, 10);
+
+  const now = new Date();
+
+  // Atomically claim the token with a single conditional UPDATE … RETURNING.
+  // Two concurrent requests cannot both succeed: only one UPDATE sees
+  // used_at IS NULL and wins; the second returns an empty set and is rejected.
+  // The password update then happens in the same transaction so no partial
+  // state is ever committed.
+  try {
+    await db.transaction(async (tx) => {
+      const [claimed] = await tx
+        .update(passwordResetTokensTable)
+        .set({ usedAt: now })
+        .where(
+          and(
+            eq(passwordResetTokensTable.token, token),
+            gt(passwordResetTokensTable.expiresAt, now),
+            isNull(passwordResetTokensTable.usedAt),
+          ),
+        )
+        .returning();
+
+      if (!claimed) {
+        // Roll back and surface a user-friendly error
+        throw Object.assign(new Error("invalid_token"), { userFacing: true });
+      }
+
+      await tx
+        .update(usersTable)
+        .set({ password: hashedPassword })
+        .where(eq(usersTable.id, claimed.userId));
+    });
+  } catch (err: any) {
+    if (err?.userFacing) {
+      res.status(400).json({ error: "This reset link is invalid or has expired." });
+      return;
+    }
+    throw err;
+  }
+
+  res.json({ message: "Password updated successfully. You can now log in." });
 });
 
 export default router;

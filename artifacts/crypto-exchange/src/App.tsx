@@ -16,6 +16,8 @@ import LoanPage from "@/pages/dashboard/loan";
 import ConvertPage from "@/pages/dashboard/convert";
 import AdminPage from "@/pages/admin";
 import AdminLoginPage from "@/pages/admin-login";
+import ForgotPasswordPage from "@/pages/forgot-password";
+import ResetPasswordPage from "@/pages/reset-password";
 import { useEffect } from "react";
 
 declare global {
@@ -75,6 +77,8 @@ function Router() {
       <Route path="/" component={LandingPage} />
       <Route path="/login" component={LoginPage} />
       <Route path="/register" component={RegisterPage} />
+      <Route path="/forgot-password" component={ForgotPasswordPage} />
+      <Route path="/reset-password" component={ResetPasswordPage} />
       
       {/* Protected Dashboard Routes */}
       <Route path="/dashboard"><ProtectedRoute component={DashboardOverview} /></Route>

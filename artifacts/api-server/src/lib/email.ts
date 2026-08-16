@@ -304,6 +304,19 @@ export function sendDepositRejectedEmail(to: string, data: { usdAmount: number }
   dispatch(sendEmail(to, "Deposit Rejected", html));
 }
 
+export function sendPasswordResetEmail(to: string, resetUrl: string): void {
+  const html = renderEmail({
+    title: "Reset Your Password",
+    intro: `We received a request to reset the password for your SmartLedger Premium account.<br><br>Click the button below to choose a new password. This link is valid for <strong>1 hour</strong> and can only be used once.`,
+    rows: [
+      { label: "Account Email", value: to },
+      { label: "Requested At", value: fmtDate() },
+      { label: "Link Expires", value: "1 hour from now" },
+    ],
+    outro: `<a href="${resetUrl}" style="display:inline-block;margin-top:8px;padding:14px 28px;background-color:${GOLD};color:#0E0F12;font-weight:700;font-size:15px;border-radius:10px;text-decoration:none;">Reset Password</a><br><br>If you did not request a password reset, you can safely ignore this email — your password will remain unchanged.`,
+  });
+  dispatch(sendEmail(to, "Reset Your Password — SmartLedger Premium", html));
+}
 export function sendKycStatusEmail(to: string, approved: boolean): void {
   const html = renderEmail({
     title: approved ? "Identity Verified" : "Verification Rejected",
