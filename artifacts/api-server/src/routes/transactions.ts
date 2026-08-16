@@ -177,15 +177,21 @@ router.post("/convert", async (req, res) => {
   const toAmount = (usdValue * 0.999) / toPrice;
   const rate = toAmount / fromAmount;
 
-  // Deduct from-coin
-  const newFromAmt = fromHolding.amount - fromAmount;
-  if (newFromAmt <= 0.0000001) {
-    await db.delete(holdingsTable).where(eq(holdingsTable.id, fromHolding.id));
-  } else {
+  // Deduct from-coin atomically — the WHERE guard prevents concurrent requests
+  // from double-spending the same balance.
+  const [debited] = await db
+    .update(holdingsTable)
+    .set({ amount: sql`${holdingsTable.amount} - ${fromAmount}`, updatedAt: new Date() })
+    .where(and(eq(holdingsTable.id, fromHolding.id), sql`${holdingsTable.amount} >= ${fromAmount}`))
+    .returning();
+  if (!debited) {
+    res.status(400).json({ error: `Insufficient ${fromSym} balance` });
+    return;
+  }
+  if (debited.amount <= 0.0000001) {
     await db
-      .update(holdingsTable)
-      .set({ amount: newFromAmt, updatedAt: new Date() })
-      .where(eq(holdingsTable.id, fromHolding.id));
+      .delete(holdingsTable)
+      .where(and(eq(holdingsTable.id, fromHolding.id), sql`${holdingsTable.amount} <= 0.0000001`));
   }
 
   // Credit to-coin
@@ -200,7 +206,11 @@ router.post("/convert", async (req, res) => {
     const newAvg = (toHolding.avgBuyPrice * toHolding.amount + toPrice * toAmount) / newAmount;
     await db
       .update(holdingsTable)
-      .set({ amount: newAmount, avgBuyPrice: newAvg, updatedAt: new Date() })
+      .set({
+        amount: sql`${holdingsTable.amount} + ${toAmount}`,
+        avgBuyPrice: newAvg,
+        updatedAt: new Date(),
+      })
       .where(eq(holdingsTable.id, toHolding.id));
   } else {
     await db.insert(holdingsTable).values({
@@ -270,10 +280,16 @@ router.post("/withdraw", async (req, res) => {
     return;
   }
 
-  await db
+  // Atomic conditional debit — guards against concurrent withdrawals double-spending.
+  const [debitedHolding] = await db
     .update(holdingsTable)
-    .set({ amount: holding.amount - amount, updatedAt: new Date() })
-    .where(eq(holdingsTable.id, holding.id));
+    .set({ amount: sql`${holdingsTable.amount} - ${amount}`, updatedAt: new Date() })
+    .where(and(eq(holdingsTable.id, holding.id), sql`${holdingsTable.amount} >= ${amount}`))
+    .returning();
+  if (!debitedHolding) {
+    res.status(400).json({ error: `Insufficient ${sym} balance` });
+    return;
+  }
 
   const assetInfo = await resolveAssetPrice(req, sym);
   const usdValue = amount * (assetInfo?.price ?? 0);

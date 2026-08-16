@@ -233,8 +233,15 @@ router.post("/transactions/:id/approve", async (req, res) => {
     res.status(404).json({ error: "Transaction not found" });
     return;
   }
-  if (tx.status !== "pending") {
-    res.status(400).json({ error: `Transaction is ${tx.status}, not pending` });
+  // Atomically claim the pending transaction — prevents concurrent approvals
+  // (or an approve racing a reject) from applying balance effects twice.
+  const [claimed] = await db
+    .update(transactionsTable)
+    .set({ status: "completed" })
+    .where(and(eq(transactionsTable.id, id), eq(transactionsTable.status, "pending")))
+    .returning();
+  if (!claimed) {
+    res.status(400).json({ error: `Transaction is ${tx.status === "pending" ? "already being processed" : tx.status}, not pending` });
     return;
   }
 
@@ -269,7 +276,6 @@ router.post("/transactions/:id/approve", async (req, res) => {
     // Balance was already deducted at request time. Approval just finalizes.
   }
 
-  await db.update(transactionsTable).set({ status: "completed" }).where(eq(transactionsTable.id, id));
   req.log.info({ id, type: tx.type }, "admin.tx.approved");
 
   const [txUser] = await db.select().from(usersTable).where(eq(usersTable.id, tx.userId)).limit(1);
@@ -290,8 +296,15 @@ router.post("/transactions/:id/reject", async (req, res) => {
     res.status(404).json({ error: "Transaction not found" });
     return;
   }
-  if (tx.status !== "pending") {
-    res.status(400).json({ error: `Transaction is ${tx.status}, not pending` });
+  // Atomically claim the pending transaction — prevents double refunds from
+  // concurrent rejects (or a reject racing an approve).
+  const [claimed] = await db
+    .update(transactionsTable)
+    .set({ status: "rejected" })
+    .where(and(eq(transactionsTable.id, id), eq(transactionsTable.status, "pending")))
+    .returning();
+  if (!claimed) {
+    res.status(400).json({ error: `Transaction is ${tx.status === "pending" ? "already being processed" : tx.status}, not pending` });
     return;
   }
 
@@ -307,7 +320,7 @@ router.post("/transactions/:id/reject", async (req, res) => {
       if (holding) {
         await db
           .update(holdingsTable)
-          .set({ amount: holding.amount + tx.amount, updatedAt: new Date() })
+          .set({ amount: sql`${holdingsTable.amount} + ${tx.amount}`, updatedAt: new Date() })
           .where(eq(holdingsTable.id, holding.id));
       } else {
         await db.insert(holdingsTable).values({
@@ -322,7 +335,6 @@ router.post("/transactions/:id/reject", async (req, res) => {
   }
   // Deposits: nothing to refund (we never credited)
 
-  await db.update(transactionsTable).set({ status: "rejected" }).where(eq(transactionsTable.id, id));
   req.log.info({ id, type: tx.type }, "admin.tx.rejected");
 
   const [txUser2] = await db.select().from(usersTable).where(eq(usersTable.id, tx.userId)).limit(1);
