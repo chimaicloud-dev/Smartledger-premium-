@@ -5,6 +5,13 @@ import { eq, and, desc, sql } from "drizzle-orm";
 import { requireAdmin } from "../lib/admin";
 import { COIN_INFO } from "../lib/coins";
 import { DEFAULT_SETTINGS } from "./settings";
+import {
+  sendDepositApprovedEmail,
+  sendDepositRejectedEmail,
+  sendWithdrawalCompletedEmail,
+  sendWithdrawalRejectedEmail,
+  sendKycStatusEmail,
+} from "../lib/email";
 
 const router: IRouter = Router();
 
@@ -238,6 +245,15 @@ router.post("/transactions/:id/approve", async (req, res) => {
 
   await db.update(transactionsTable).set({ status: "completed" }).where(eq(transactionsTable.id, id));
   req.log.info({ id, type: tx.type }, "admin.tx.approved");
+
+  const [txUser] = await db.select().from(usersTable).where(eq(usersTable.id, tx.userId)).limit(1);
+  if (txUser) {
+    if (tx.type === "deposit") {
+      sendDepositApprovedEmail(txUser.email, { usdAmount: tx.usdAmount, coin: tx.coin, amount: tx.amount, symbol: tx.symbol });
+    } else if (tx.type === "withdraw") {
+      sendWithdrawalCompletedEmail(txUser.email, { amount: tx.usdAmount, method: tx.coin ?? "USD", address: tx.symbol });
+    }
+  }
   res.json(await fetchTxWithUser(id));
 });
 
@@ -261,6 +277,15 @@ router.post("/transactions/:id/reject", async (req, res) => {
 
   await db.update(transactionsTable).set({ status: "rejected" }).where(eq(transactionsTable.id, id));
   req.log.info({ id, type: tx.type }, "admin.tx.rejected");
+
+  const [txUser2] = await db.select().from(usersTable).where(eq(usersTable.id, tx.userId)).limit(1);
+  if (txUser2) {
+    if (tx.type === "deposit") {
+      sendDepositRejectedEmail(txUser2.email, { usdAmount: tx.usdAmount });
+    } else if (tx.type === "withdraw") {
+      sendWithdrawalRejectedEmail(txUser2.email, { amount: tx.usdAmount, method: tx.coin ?? "USD" });
+    }
+  }
   res.json(await fetchTxWithUser(id));
 });
 
@@ -286,6 +311,7 @@ router.post("/kyc/:userId/approve", async (req, res) => {
     .where(eq(usersTable.id, userId))
     .returning();
   req.log.info({ userId }, "admin.kyc.approved");
+  sendKycStatusEmail(user.email, true);
   res.json(userToResponse(updated));
 });
 
@@ -300,6 +326,7 @@ router.post("/kyc/:userId/reject", async (req, res) => {
     .where(eq(usersTable.id, userId))
     .returning();
   req.log.info({ userId }, "admin.kyc.rejected");
+  sendKycStatusEmail(user.email, false);
   res.json(userToResponse(updated));
 });
 

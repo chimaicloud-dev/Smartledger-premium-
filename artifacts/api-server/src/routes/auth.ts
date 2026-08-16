@@ -4,6 +4,7 @@ import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { RegisterBody, LoginBody } from "@workspace/api-zod";
+import { sendWelcomeEmail } from "../lib/email";
 
 declare module "express-session" {
   interface SessionData {
@@ -21,6 +22,12 @@ router.post("/register", async (req, res) => {
   }
 
   const { email, password, name, phone, country, dateOfBirth, experience } = parsed.data;
+
+  // Must be exactly one valid email address (no lists, spaces, or brackets)
+  if (!/^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/.test(email.trim())) {
+    res.status(400).json({ error: "Invalid email address" });
+    return;
+  }
 
   const existing = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
   if (existing.length > 0) {
@@ -41,6 +48,8 @@ router.post("/register", async (req, res) => {
   }).returning();
 
   req.session.userId = user.id;
+
+  sendWelcomeEmail(user.email, user.name);
 
   res.status(201).json({
     user: {

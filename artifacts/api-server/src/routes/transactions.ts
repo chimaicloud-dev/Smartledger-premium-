@@ -4,6 +4,7 @@ import { eq, and, sql } from "drizzle-orm";
 import { BuyCryptoBody, SellCryptoBody, DepositBody, WithdrawBody, ConvertCryptoBody } from "@workspace/api-zod";
 import { fetchForexPrices, getForexAssetMeta } from "../lib/forex";
 import { COIN_INFO } from "../lib/coins";
+import { sendWithdrawalRequestedEmail, sendDepositReceivedEmail } from "../lib/email";
 
 declare module "express-session" {
   interface SessionData {
@@ -248,6 +249,8 @@ router.post("/deposit", async (req, res) => {
 
     req.log.info({ userId: user.id, symbol: sym, coinAmount }, "deposit.pending");
 
+    sendDepositReceivedEmail(user.email, { usdAmount: usdValue, coin: assetInfo.name, amount: coinAmount, symbol: sym });
+
     res.json({
       id: tx.id,
       type: tx.type,
@@ -272,6 +275,8 @@ router.post("/deposit", async (req, res) => {
       status: "pending",
     })
     .returning();
+
+  sendDepositReceivedEmail(user.email, { usdAmount: amount });
 
   res.json({
     id: tx.id,
@@ -420,6 +425,8 @@ router.post("/withdraw", async (req, res) => {
       status: "pending",
     })
     .returning();
+
+  sendWithdrawalRequestedEmail(user.email, { amount, method, address });
 
   res.json({
     id: tx.id,

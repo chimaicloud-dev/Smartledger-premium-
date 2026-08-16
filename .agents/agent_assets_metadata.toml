@@ -1,8 +1,14 @@
 uploads = []
-outputs = []
 
 [[generated]]
 id = "TMWpGZrg-Js4Fl9rsx7Y-"
 uri = "file://artifacts/crypto-exchange/public/images/logo.png"
 type = "image"
 title = "smartledger-premium-logo"
+
+[[outputs]]
+id = "Yiu3mvwlgcqO3FZp0wQZN"
+uri = "file://attached_assets/email-template-preview.html"
+type = "text"
+title = "Email template preview"
+description = "Withdrawal Requested email in the SmartLedger Premium dark style — same template used for registration, deposits, and KYC notices."
