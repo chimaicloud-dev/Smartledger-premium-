@@ -14,6 +14,7 @@ export * from "./adminUserUpdateKycStatus";
 export * from "./adminUserUpdateRole";
 export * from "./adminUserUpdateStatus";
 export * from "./authResponse";
+export * from "./changePasswordRequest";
 export * from "./coinPrice";
 export * from "./convertRequest";
 export * from "./convertResponse";

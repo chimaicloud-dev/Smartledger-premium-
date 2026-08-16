@@ -2,9 +2,9 @@ import { useState } from "react";
 import { DashboardLayout } from "@/components/layout";
 import { Card, Button, Input } from "@/components/ui/shared";
 import { useAuth } from "@/hooks/use-auth";
-import { Shield, ShieldAlert, ShieldCheck, User as UserIcon, Mail, Activity, X, Check, Loader2 } from "lucide-react";
+import { Shield, ShieldAlert, ShieldCheck, User as UserIcon, Mail, Activity, X, Check, Loader2, Lock } from "lucide-react";
 import { format } from "date-fns";
-import { useSubmitKyc } from "@workspace/api-client-react";
+import { useSubmitKyc, useChangePassword } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 
@@ -102,6 +102,97 @@ function KycModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+function ChangePasswordSection() {
+  const [form, setForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+
+  const mutation = useChangePassword({
+    mutation: {
+      onSuccess: () => {
+        setSuccess(true);
+        setForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+        setTimeout(() => setSuccess(false), 4000);
+      },
+      onError: (err: any) => setError(err?.message || "Failed to change password. Please try again."),
+    },
+  });
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccess(false);
+    if (!form.currentPassword || !form.newPassword || !form.confirmPassword) {
+      setError("Please fill in all fields.");
+      return;
+    }
+    if (form.newPassword.length < 6) {
+      setError("New password must be at least 6 characters.");
+      return;
+    }
+    if (form.newPassword !== form.confirmPassword) {
+      setError("New passwords do not match.");
+      return;
+    }
+    mutation.mutate({ data: { currentPassword: form.currentPassword, newPassword: form.newPassword } });
+  };
+
+  return (
+    <Card className="overflow-hidden">
+      <div className="p-6 border-b border-border flex items-center gap-3">
+        <Lock className="w-5 h-5 text-muted-foreground" />
+        <h3 className="text-lg font-display font-bold">Security</h3>
+      </div>
+      <div className="p-6">
+        <form onSubmit={submit} className="space-y-4 max-w-sm">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-muted-foreground">Current Password</label>
+            <Input
+              type="password"
+              value={form.currentPassword}
+              onChange={(e) => setForm({ ...form, currentPassword: e.target.value })}
+              autoComplete="current-password"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-muted-foreground">New Password</label>
+            <Input
+              type="password"
+              value={form.newPassword}
+              onChange={(e) => setForm({ ...form, newPassword: e.target.value })}
+              autoComplete="new-password"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-muted-foreground">Confirm New Password</label>
+            <Input
+              type="password"
+              value={form.confirmPassword}
+              onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
+              autoComplete="new-password"
+            />
+          </div>
+
+          {error && (
+            <p className="text-sm text-destructive flex items-center gap-1.5">
+              <X className="w-4 h-4 shrink-0" />{error}
+            </p>
+          )}
+          {success && (
+            <p className="text-sm text-success flex items-center gap-1.5">
+              <Check className="w-4 h-4 shrink-0" />Password changed successfully.
+            </p>
+          )}
+
+          <Button type="submit" className="font-semibold" disabled={mutation.isPending}>
+            {mutation.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Updating...</> : "Update Password"}
+          </Button>
+        </form>
+      </div>
+    </Card>
+  );
+}
+
 export default function SettingsPage() {
   const { user } = useAuth();
   const [kycOpen, setKycOpen] = useState(false);
@@ -195,6 +286,8 @@ export default function SettingsPage() {
                 </div>
               </Card>
             )}
+
+            <ChangePasswordSection />
 
             <Card className="overflow-hidden border-destructive/20">
               <div className="p-6 border-b border-destructive/10 bg-destructive/5">

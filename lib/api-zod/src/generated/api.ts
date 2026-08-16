@@ -73,6 +73,18 @@ export const GetMeResponse = zod.object({
 });
 
 /**
+ * @summary Change current user's password
+ */
+export const ChangePasswordBody = zod.object({
+  currentPassword: zod.string(),
+  newPassword: zod.string(),
+});
+
+export const ChangePasswordResponse = zod.object({
+  message: zod.string(),
+});
+
+/**
  * @summary Submit KYC verification
  */
 export const SubmitKycBody = zod.object({

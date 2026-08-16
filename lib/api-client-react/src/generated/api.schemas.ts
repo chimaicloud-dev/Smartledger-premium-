@@ -149,6 +149,11 @@ export interface AdminUserUpdate {
   adjustReason?: string;
 }
 
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+}
+
 export interface KycSubmitRequest {
   fullName: string;
   dateOfBirth: string;

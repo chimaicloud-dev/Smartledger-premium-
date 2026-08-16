@@ -189,6 +189,54 @@ router.post("/kyc/verify", async (req, res) => {
   });
 });
 
+// ---------- Change Password ----------
+
+router.post("/change-password", async (req, res) => {
+  if (!req.session.userId) {
+    res.status(401).json({ error: "Not authenticated" });
+    return;
+  }
+
+  const { currentPassword, newPassword } = (req.body ?? {}) as {
+    currentPassword?: string;
+    newPassword?: string;
+  };
+
+  if (!currentPassword || typeof currentPassword !== "string") {
+    res.status(400).json({ error: "Current password is required" });
+    return;
+  }
+  if (!newPassword || typeof newPassword !== "string" || newPassword.length < 6) {
+    res.status(400).json({ error: "New password must be at least 6 characters" });
+    return;
+  }
+
+  const [user] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.id, req.session.userId))
+    .limit(1);
+
+  if (!user) {
+    res.status(401).json({ error: "User not found" });
+    return;
+  }
+
+  const valid = await bcrypt.compare(currentPassword, user.password);
+  if (!valid) {
+    res.status(401).json({ error: "Current password is incorrect" });
+    return;
+  }
+
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+  await db
+    .update(usersTable)
+    .set({ password: hashedPassword })
+    .where(eq(usersTable.id, req.session.userId));
+
+  res.json({ message: "Password changed successfully" });
+});
+
 // ---------- Forgot Password ----------
 
 router.post("/forgot-password", async (req, res) => {
