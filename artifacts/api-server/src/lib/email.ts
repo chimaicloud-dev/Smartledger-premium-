@@ -319,6 +319,52 @@ export function sendPasswordResetEmail(to: string, resetUrl: string): void {
   });
   dispatch(sendEmail(to, "Reset Your Password — SmartLedger Premium", html));
 }
+// ---------- admin notifications ----------
+
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "officialsmartledgerpremium@gmail.com";
+
+export function notifyAdminDepositReceived(
+  userEmail: string,
+  data: { usdAmount: number; coin?: string | null; amount?: number | null; symbol?: string | null }
+): void {
+  const rows: EmailRow[] = [{ label: "User", value: userEmail }];
+  if (data.coin && data.amount && data.symbol) {
+    rows.push({ label: "Asset", value: `${data.coin} (${data.symbol})` });
+    rows.push({ label: "Amount", value: `${data.amount} ${data.symbol}` });
+  }
+  rows.push(
+    { label: "USD Value", value: fmtUsd(data.usdAmount) },
+    { label: "Status", value: "Pending Review" },
+    { label: "Submitted At", value: fmtDate() }
+  );
+  const html = renderEmail({
+    title: "New Deposit Submitted",
+    rows,
+    outro: "A user has submitted a deposit. Please log in to the admin panel to review and approve or reject it.",
+  });
+  dispatch(sendEmail(ADMIN_EMAIL, `[Admin] New Deposit — ${fmtUsd(data.usdAmount)} from ${userEmail}`, html));
+}
+
+export function notifyAdminWithdrawalRequested(
+  userEmail: string,
+  data: { amount: number; method: string; address?: string | null }
+): void {
+  const rows: EmailRow[] = [{ label: "User", value: userEmail }];
+  rows.push({ label: "Amount", value: fmtUsd(data.amount) });
+  if (data.address) rows.push({ label: "Wallet / Account", value: data.address });
+  rows.push(
+    { label: "Method", value: data.method },
+    { label: "Status", value: "Pending Review" },
+    { label: "Submitted At", value: fmtDate() }
+  );
+  const html = renderEmail({
+    title: "New Withdrawal Request",
+    rows,
+    outro: "A user has requested a withdrawal. Please log in to the admin panel to review and approve or reject it.",
+  });
+  dispatch(sendEmail(ADMIN_EMAIL, `[Admin] New Withdrawal — ${fmtUsd(data.amount)} from ${userEmail}`, html));
+}
+
 export function sendKycStatusEmail(to: string, approved: boolean): void {
   const html = renderEmail({
     title: approved ? "Identity Verified" : "Verification Rejected",
