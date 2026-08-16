@@ -71,23 +71,36 @@ export function renderEmail(opts: {
 <meta charset="utf-8">
 <meta name="google" content="notranslate">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="supported-color-schemes" content="dark">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<!--[if mso]>
+<noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
+<![endif]-->
+<style>
+  :root { color-scheme: dark; supported-color-schemes: dark; }
+  body, table, td { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+  @media only screen and (max-width: 620px) {
+    .sl-card-pad { padding-left: 20px !important; padding-right: 20px !important; }
+  }
+</style>
 <title>${esc(title)}</title>
 </head>
-<body style="margin:0;padding:0;background-color:${BG};">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:${BG};padding:24px 0;">
+<body bgcolor="${BG}" style="margin:0;padding:0;background-color:${BG};">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${BG}" style="background-color:${BG};padding:24px 0;">
     <tr>
       <td align="center" style="padding:24px 12px;">
-        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background-color:${CARD};border-radius:20px;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" bgcolor="${CARD}" style="max-width:600px;width:100%;background-color:${CARD};border-radius:20px;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
           <!-- Header -->
           <tr>
-            <td style="padding:32px 36px 24px 36px;border-bottom:1px solid ${ROW_BORDER};">
+            <td class="sl-card-pad" style="padding:32px 36px 24px 36px;border-bottom:1px solid ${ROW_BORDER};">
               <span class="notranslate" translate="no" style="display:block;color:#ffffff;font-size:26px;font-weight:800;letter-spacing:-0.5px;">SmartLedger</span>
               <span class="notranslate" translate="no" style="display:block;color:${GOLD};font-size:12px;font-weight:700;letter-spacing:5px;margin-top:2px;">PREMIUM</span>
             </td>
           </tr>
           <!-- Body -->
           <tr>
-            <td style="padding:32px 36px 8px 36px;">
+            <td class="sl-card-pad" style="padding:32px 36px 8px 36px;">
               <h1 style="margin:0;color:#ffffff;font-size:26px;font-weight:800;">${esc(title)}</h1>
               <div style="width:64px;height:4px;background-color:${GOLD};border-radius:2px;margin:14px 0 24px 0;"></div>
               ${intro ? `<p style="margin:0 0 24px 0;color:#c9ccd4;font-size:15px;line-height:1.6;">${intro}</p>` : ""}
@@ -97,7 +110,7 @@ export function renderEmail(opts: {
           </tr>
           <!-- Footer -->
           <tr>
-            <td style="padding:28px 36px 32px 36px;">
+            <td class="sl-card-pad" style="padding:28px 36px 32px 36px;">
               <p style="margin:0;color:${MUTED};font-size:13px;text-align:center;line-height:1.7;">
                 This is an automated notification from <span class="notranslate" translate="no">SmartLedger Premium</span>.<br>
                 &copy; ${new Date().getFullYear()} <span class="notranslate" translate="no">Smartledger-premium</span> &middot; London, United Kingdom
@@ -225,6 +238,17 @@ export function sendWelcomeEmail(to: string, name: string): void {
   dispatch(sendEmail(to, "Welcome to SmartLedger Premium", html), "Welcome to SmartLedger Premium", to);
 }
 
+/**
+ * Masks a wallet address / account number for user-facing emails:
+ * "bc1qjhcvevvflc8d3mwr7f4wulc884yjzpqsyrydcy" → "bc1qjh…ydcy".
+ * Admin emails keep the full address.
+ */
+function maskAddress(addr: string): string {
+  const a = addr.trim();
+  if (a.length <= 12) return a;
+  return `${a.slice(0, 6)}…${a.slice(-4)}`;
+}
+
 export function sendWithdrawalRequestedEmail(
   to: string,
   name: string,
@@ -234,7 +258,7 @@ export function sendWithdrawalRequestedEmail(
     { label: "User", value: name },
     { label: "Amount", value: fmtUsd(data.amount) },
   ];
-  if (data.address) rows.push({ label: "Wallet / Account", value: data.address });
+  if (data.address) rows.push({ label: "Wallet / Account", value: maskAddress(data.address) });
   rows.push(
     { label: "Method", value: data.method },
     { label: "Status", value: "Pending Review" },
@@ -258,7 +282,7 @@ export function sendWithdrawalCompletedEmail(
     { label: "User", value: name },
     { label: "Amount", value: fmtUsd(data.amount) },
   ];
-  if (data.address) rows.push({ label: "Wallet / Account", value: data.address });
+  if (data.address) rows.push({ label: "Wallet / Account", value: maskAddress(data.address) });
   rows.push(
     { label: "Method", value: data.method },
     { label: "Status", value: "Completed" },
