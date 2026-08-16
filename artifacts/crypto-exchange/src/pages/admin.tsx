@@ -674,7 +674,7 @@ function SettingsField({
 }
 
 function SettingsTab() {
-  const [panel, setPanel] = useState<"payment" | "homepage" | "email">("payment");
+  const [panel, setPanel] = useState<"payment" | "plans" | "homepage" | "email">("payment");
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -702,10 +702,13 @@ function SettingsTab() {
         credentials: "include",
         body: JSON.stringify(body),
       });
-      if (!r.ok) throw new Error();
+      if (!r.ok) {
+        const data = await r.json().catch(() => null);
+        throw new Error(data?.error || "");
+      }
       setSaveMsg("✓ Saved successfully");
-    } catch {
-      setSaveMsg("✗ Failed to save — please try again");
+    } catch (e: any) {
+      setSaveMsg(`✗ ${e?.message || "Failed to save — please try again"}`);
     } finally {
       setSaving(false);
       setTimeout(() => setSaveMsg(null), 4000);
@@ -714,6 +717,14 @@ function SettingsTab() {
 
   const PAYMENT_KEYS = ["payment_btc_address","payment_eth_address","payment_usdt_trc20_address","payment_usdt_erc20_address","payment_bnb_address","payment_sol_address","payment_xrp_address","payment_ltc_address","payment_trx_address","payment_doge_address","payment_bank_enabled","payment_bank_name","payment_bank_account_name","payment_bank_account_number","payment_bank_routing","payment_bank_swift"];
   const HOME_KEYS = ["home_hero_title","home_hero_subtitle","home_badge_text","home_feature1_title","home_feature1_desc","home_feature2_title","home_feature2_desc"];
+  const ADMIN_PLANS = [
+    { id: "starter", name: "Starter" },
+    { id: "balanced", name: "Balanced" },
+    { id: "upgrade", name: "Upgrade" },
+    { id: "pro-trader", name: "Pro Trader" },
+    { id: "professional", name: "Professional" },
+  ];
+  const PLAN_KEYS = ADMIN_PLANS.flatMap((p) => [`plan_${p.id}_min`, `plan_${p.id}_max`, `plan_${p.id}_daily_pct`]);
   const EMAIL_KEYS = ["email_smtp_host","email_smtp_port","email_smtp_user","email_smtp_pass","email_from_name","email_from_address","email_support_address"];
 
   if (loading) return <div className="text-muted-foreground text-sm py-8 text-center">Loading settings...</div>;
@@ -722,7 +733,7 @@ function SettingsTab() {
     <div className="space-y-4">
       {/* Sub-tab selector */}
       <div className="flex gap-1 p-1 bg-secondary rounded-xl w-fit">
-        {(["payment", "homepage", "email"] as const).map((p) => (
+        {(["payment", "plans", "homepage", "email"] as const).map((p) => (
           <button
             key={p}
             onClick={() => { setPanel(p); setSaveMsg(null); }}
@@ -731,7 +742,7 @@ function SettingsTab() {
               panel === p ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
             )}
           >
-            {p === "payment" ? "💳 Payment Details" : p === "homepage" ? "🏠 Homepage" : "📧 Email"}
+            {p === "payment" ? "💳 Payment Details" : p === "plans" ? "📈 Investment Plans" : p === "homepage" ? "🏠 Homepage" : "📧 Email"}
           </button>
         ))}
       </div>
@@ -805,6 +816,49 @@ function SettingsTab() {
           <div className="flex justify-end">
             <Button onClick={() => saveSection(PAYMENT_KEYS)} disabled={saving} className="min-w-[160px]">
               {saving ? "Saving..." : "Save Payment Settings"}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* ── INVESTMENT PLANS PANEL ── */}
+      {panel === "plans" && (
+        <div className="space-y-4">
+          <div className="rounded-xl bg-card border border-border overflow-hidden">
+            <div className="px-5 py-4 border-b border-border">
+              <h3 className="font-display font-bold flex items-center gap-2"><DollarSign className="w-4 h-4 text-amber-400" /> Investment Plans</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Edit each plan's minimum, maximum, and daily return %. Changes apply to new investments immediately — existing investments keep the rate they were bought at.
+                Leave Max empty for unlimited. Daily % is per 24h (e.g. 2 = 2%/day = 60% over 30 days).
+              </p>
+            </div>
+            <div className="p-5 space-y-5">
+              {ADMIN_PLANS.map((p) => {
+                const dailyPct = parseFloat(s(`plan_${p.id}_daily_pct`)) || 0;
+                return (
+                  <div key={p.id} className="rounded-xl bg-secondary/40 border border-border p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-bold text-foreground">{p.name}</p>
+                      {dailyPct > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          {dailyPct}% daily · {parseFloat((dailyPct * 30).toFixed(2))}% over 30 days
+                        </p>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <SettingsField label="Minimum ($)" value={s(`plan_${p.id}_min`)} onChange={(v) => upd(`plan_${p.id}_min`, v)} placeholder="50" mono />
+                      <SettingsField label="Maximum ($ — empty = unlimited)" value={s(`plan_${p.id}_max`)} onChange={(v) => upd(`plan_${p.id}_max`, v)} placeholder="499" mono />
+                      <SettingsField label="Daily return (%)" value={s(`plan_${p.id}_daily_pct`)} onChange={(v) => upd(`plan_${p.id}_daily_pct`, v)} placeholder="2" mono />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="flex justify-end">
+            <Button onClick={() => saveSection(PLAN_KEYS)} disabled={saving} className="min-w-[160px]">
+              {saving ? "Saving..." : "Save Investment Plans"}
             </Button>
           </div>
         </div>

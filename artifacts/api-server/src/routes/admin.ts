@@ -439,10 +439,58 @@ router.get("/settings", async (_req, res) => {
   res.json(result);
 });
 
+// Strict decimal: digits with optional single decimal part (no "2junk", no "1e9")
+const DECIMAL_RE = /^\d+(\.\d+)?$/;
+const PLAN_IDS = ["starter", "balanced", "upgrade", "pro-trader", "professional"];
+const MAX_DAILY_PCT = 10; // hard ceiling: 10%/day (300% over the 30-day term)
+
+/**
+ * Validates investment-plan settings before persisting. Checks each touched
+ * plan's full config (incoming values merged over stored/default ones):
+ * strict numeric grammar, positive values, min <= max, and a daily-rate cap.
+ * Returns an error string, or null if everything is valid.
+ */
+async function validatePlanSettings(updates: Record<string, string>): Promise<string | null> {
+  const touched = PLAN_IDS.filter((id) =>
+    [`plan_${id}_min`, `plan_${id}_max`, `plan_${id}_daily_pct`].some((k) => k in updates)
+  );
+  if (touched.length === 0) return null;
+
+  const rows = await db.select().from(siteSettingsTable);
+  const stored = (k: string) => rows.find((r) => r.key === k)?.value ?? DEFAULT_SETTINGS[k] ?? "";
+  const effective = (k: string) => (k in updates ? updates[k] : stored(k)).trim();
+
+  for (const id of touched) {
+    const name = id.charAt(0).toUpperCase() + id.slice(1);
+    const minStr = effective(`plan_${id}_min`);
+    const maxStr = effective(`plan_${id}_max`);
+    const pctStr = effective(`plan_${id}_daily_pct`);
+
+    if (!DECIMAL_RE.test(minStr) || parseFloat(minStr) <= 0) {
+      return `${name}: minimum must be a positive number (got "${minStr}")`;
+    }
+    if (maxStr !== "" && (!DECIMAL_RE.test(maxStr) || parseFloat(maxStr) <= 0)) {
+      return `${name}: maximum must be a positive number or empty for unlimited (got "${maxStr}")`;
+    }
+    if (maxStr !== "" && parseFloat(minStr) > parseFloat(maxStr)) {
+      return `${name}: minimum ($${minStr}) cannot be greater than maximum ($${maxStr})`;
+    }
+    if (!DECIMAL_RE.test(pctStr) || parseFloat(pctStr) <= 0 || parseFloat(pctStr) > MAX_DAILY_PCT) {
+      return `${name}: daily return must be between 0 and ${MAX_DAILY_PCT}% (got "${pctStr}")`;
+    }
+  }
+  return null;
+}
+
 router.put("/settings", async (req, res) => {
   const updates = req.body as Record<string, string>;
   if (!updates || typeof updates !== "object" || Array.isArray(updates)) {
     res.status(400).json({ error: "Invalid body — expected a flat key/value object" });
+    return;
+  }
+  const planError = await validatePlanSettings(updates);
+  if (planError) {
+    res.status(400).json({ error: planError });
     return;
   }
   for (const [key, value] of Object.entries(updates)) {

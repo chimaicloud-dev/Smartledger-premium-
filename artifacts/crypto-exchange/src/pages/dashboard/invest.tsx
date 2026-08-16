@@ -1,5 +1,5 @@
 import { apiErrorMessage } from "@/lib/api-error";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { DashboardLayout } from "@/components/layout";
 import { Card, Button, Input } from "@/components/ui/shared";
 import { useAuth } from "@/hooks/use-auth";
@@ -132,7 +132,13 @@ const INVESTMENT_PLANS = [
   },
 ];
 
-type Plan = typeof INVESTMENT_PLANS[0];
+type Plan = Omit<typeof INVESTMENT_PLANS[number], "minInvest" | "maxInvest" | "dailyPct" | "dailyReturn" | "monthlyReturn"> & {
+  minInvest: number;
+  maxInvest: number | null;
+  dailyPct: number;
+  dailyReturn: string;
+  monthlyReturn: string;
+};
 
 // ─── Pip & Lot Config ───────────────────────────────────────────────────────
 const PIP_MAP: Record<string, { size: number; decimals: number; lotUsd: number }> = {
@@ -894,9 +900,51 @@ function OpenPositionsPanel({
   );
 }
 
+function formatPct(p: number): string {
+  const pct = p * 100;
+  return `${Number.isInteger(pct) ? pct : parseFloat(pct.toFixed(2))}%`;
+}
+
 export default function InvestPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+
+  // Admin-editable plan overrides (min/max/daily %) from site settings
+  const [planSettings, setPlanSettings] = useState<Record<string, string>>({});
+  useEffect(() => {
+    fetch("/api/settings/public")
+      .then((r) => (r.ok ? r.json() : {}))
+      .then((data) => setPlanSettings(data || {}))
+      .catch(() => {});
+  }, []);
+
+  const plans: Plan[] = useMemo(() => {
+    return INVESTMENT_PLANS.map((p) => {
+      const g = (suffix: string) => (planSettings[`plan_${p.id}_${suffix}`] ?? "").trim();
+      const minRaw = parseFloat(g("min"));
+      const maxStr = g("max");
+      const maxRaw = maxStr === "" ? NaN : parseFloat(maxStr);
+      const pctRaw = parseFloat(g("daily_pct"));
+
+      const minInvest = Number.isFinite(minRaw) && minRaw > 0 ? minRaw : p.minInvest;
+      const maxInvest =
+        Object.keys(planSettings).length && maxStr === ""
+          ? null
+          : Number.isFinite(maxRaw) && maxRaw > 0
+            ? maxRaw
+            : p.maxInvest;
+      const dailyPct = Number.isFinite(pctRaw) && pctRaw > 0 && pctRaw <= 100 ? pctRaw / 100 : p.dailyPct;
+
+      return {
+        ...p,
+        minInvest,
+        maxInvest,
+        dailyPct,
+        dailyReturn: formatPct(dailyPct),
+        monthlyReturn: formatPct(dailyPct * 30),
+      };
+    });
+  }, [planSettings]);
   const { data: cryptoMarkets } = useGetMarketPrices({
     query: { queryKey: ["/api/market/prices"], refetchInterval: 5000, refetchOnWindowFocus: true },
   });
@@ -1182,7 +1230,7 @@ export default function InvestPage() {
 
             {/* 4 Plans Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-5">
-              {INVESTMENT_PLANS.map((plan) => {
+              {plans.map((plan) => {
                 const Icon = plan.icon;
                 const isActive = !!activePlans[plan.id];
 

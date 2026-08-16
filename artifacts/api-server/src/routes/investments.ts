@@ -1,7 +1,8 @@
 import { Router, type IRouter } from "express";
-import { db, usersTable, holdingsTable, investmentsTable, transactionsTable } from "@workspace/db";
+import { db, usersTable, holdingsTable, investmentsTable, transactionsTable, siteSettingsTable } from "@workspace/db";
 import { and, eq, sql, desc } from "drizzle-orm";
 import { z } from "zod/v4";
+import { DEFAULT_SETTINGS } from "./settings";
 
 declare module "express-session" {
   interface SessionData {
@@ -13,6 +14,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const PLAN_DURATION_DAYS = 30;
 
 // Server-side source of truth for plan tiers (mirrors the frontend cards).
+// min/max/dailyPct are the built-in defaults; admins can override them via
+// site settings (plan_<id>_min / _max / _daily_pct), edited in the admin panel.
 const PLANS: Record<string, { name: string; min: number; max: number | null; dailyPct: number }> = {
   starter: { name: "Starter", min: 50, max: 499, dailyPct: 0.02 },
   balanced: { name: "Balanced", min: 500, max: 999, dailyPct: 0.015 },
@@ -20,6 +23,32 @@ const PLANS: Record<string, { name: string; min: number; max: number | null; dai
   "pro-trader": { name: "Pro Trader", min: 5000, max: 9999, dailyPct: 0.008 },
   professional: { name: "Professional", min: 10000, max: null, dailyPct: 0.005 },
 };
+
+/**
+ * Returns the effective plan config: built-in defaults overridden by any
+ * admin-edited site settings. Invalid/empty overrides fall back to defaults
+ * ("" or invalid max = unlimited only for plans whose default max is null).
+ */
+export async function getEffectivePlan(planId: string): Promise<{ name: string; min: number; max: number | null; dailyPct: number } | null> {
+  const base = PLANS[planId];
+  if (!base) return null;
+
+  const keys = [`plan_${planId}_min`, `plan_${planId}_max`, `plan_${planId}_daily_pct`];
+  const rows = await db.select().from(siteSettingsTable);
+  const get = (k: string) => rows.find((r) => r.key === k)?.value ?? DEFAULT_SETTINGS[k] ?? "";
+
+  const minRaw = parseFloat(get(keys[0]));
+  const maxStr = get(keys[1]).trim();
+  const maxRaw = maxStr === "" ? null : parseFloat(maxStr);
+  const pctRaw = parseFloat(get(keys[2]));
+
+  const min = Number.isFinite(minRaw) && minRaw > 0 ? minRaw : base.min;
+  const max = maxRaw === null ? null : Number.isFinite(maxRaw) && maxRaw > 0 ? maxRaw : base.max;
+  // Setting stores percent per day (e.g. "2" = 2%); clamp to a sane 0–100%.
+  const dailyPct = Number.isFinite(pctRaw) && pctRaw > 0 && pctRaw <= 100 ? pctRaw / 100 : base.dailyPct;
+
+  return { name: base.name, min, max, dailyPct };
+}
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -157,7 +186,7 @@ router.post("/investments", async (req, res) => {
     return;
   }
   const { planId, amount } = parsed.data;
-  const plan = PLANS[planId];
+  const plan = await getEffectivePlan(planId);
   if (!plan) {
     res.status(400).json({ error: "Unknown plan" });
     return;
