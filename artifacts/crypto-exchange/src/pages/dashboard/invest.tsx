@@ -426,7 +426,9 @@ function PlanModal({ plan, onClose, userBalance, onSuccess }: {
     })),
   });
 
-  const watchAmount = watch("amount") || 0;
+  // watch() can return the raw input string — coerce to a number so
+  // `watchAmount + monthlyEarning` adds instead of concatenating ("50" + 30 = "5030").
+  const watchAmount = Number(watch("amount")) || 0;
   const dailyEarning = watchAmount * plan.dailyPct;
   const monthlyEarning = watchAmount * plan.dailyPct * 30;
   const totalReturn = watchAmount + monthlyEarning;
@@ -445,7 +447,7 @@ function PlanModal({ plan, onClose, userBalance, onSuccess }: {
   });
 
   const onFormSubmit = (data: { amount: number }) => {
-    setInvestAmount(data.amount);
+    setInvestAmount(Number(data.amount) || 0); // form value may arrive as a string
     setStep("confirm");
   };
 
