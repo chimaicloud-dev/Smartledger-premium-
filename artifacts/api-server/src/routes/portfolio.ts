@@ -60,10 +60,10 @@ router.get("/", async (req, res) => {
       };
     });
 
-  const totalValue = holdingsWithValue.reduce((sum, h) => sum + h.currentValue, 0) + user.usdBalance;
+  const totalValue = holdingsWithValue.reduce((sum, h) => sum + h.currentValue, 0);
 
   res.json({
-    usdBalance: user.usdBalance,
+    usdBalance: 0,
     pendingDeposits,
     totalValue,
     holdings: holdingsWithValue,

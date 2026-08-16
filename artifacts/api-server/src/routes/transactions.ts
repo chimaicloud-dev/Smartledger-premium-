@@ -1,9 +1,10 @@
 import { Router, type IRouter, type Request } from "express";
 import { db, usersTable, holdingsTable, transactionsTable } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
-import { BuyCryptoBody, SellCryptoBody, DepositBody, WithdrawBody, ConvertCryptoBody } from "@workspace/api-zod";
+import { DepositBody, WithdrawBody, ConvertCryptoBody } from "@workspace/api-zod";
 import { fetchForexPrices, getForexAssetMeta } from "../lib/forex";
 import { COIN_INFO } from "../lib/coins";
+import { methodToSymbol } from "../lib/withdraw-methods";
 import { sendWithdrawalRequestedEmail, sendDepositReceivedEmail, notifyAdminDepositReceived, notifyAdminWithdrawalRequested } from "../lib/email";
 
 declare module "express-session" {
@@ -54,156 +55,12 @@ router.get("/", async (req, res) => {
   );
 });
 
-router.post("/buy", async (req, res) => {
-  if (!req.session.userId) {
-    res.status(401).json({ error: "Not authenticated" });
-    return;
-  }
-
-  const parsed = BuyCryptoBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: "Invalid input" });
-    return;
-  }
-
-  const { symbol, usdAmount } = parsed.data;
-  const assetInfo = await resolveAssetPrice(req, symbol);
-  if (!assetInfo) {
-    res.status(400).json({ error: "Unknown asset" });
-    return;
-  }
-
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.session.userId)).limit(1);
-  if (!user || user.usdBalance < usdAmount) {
-    res.status(400).json({ error: "Insufficient balance" });
-    return;
-  }
-
-  const price = assetInfo.price;
-  const coinAmount = usdAmount / price;
-  const sym = symbol.toUpperCase();
-  const coinName = assetInfo.name;
-
-  await db.update(usersTable).set({ usdBalance: user.usdBalance - usdAmount }).where(eq(usersTable.id, user.id));
-
-  const existingHolding = await db
-    .select()
-    .from(holdingsTable)
-    .where(and(eq(holdingsTable.userId, user.id), eq(holdingsTable.symbol, sym)))
-    .limit(1);
-
-  if (existingHolding.length > 0) {
-    const h = existingHolding[0];
-    const newAmount = h.amount + coinAmount;
-    const newAvg = (h.avgBuyPrice * h.amount + price * coinAmount) / newAmount;
-    await db
-      .update(holdingsTable)
-      .set({ amount: newAmount, avgBuyPrice: newAvg, updatedAt: new Date() })
-      .where(eq(holdingsTable.id, h.id));
-  } else {
-    await db.insert(holdingsTable).values({
-      userId: user.id,
-      coin: coinName,
-      symbol: sym,
-      amount: coinAmount,
-      avgBuyPrice: price,
-    });
-  }
-
-  const [tx] = await db
-    .insert(transactionsTable)
-    .values({
-      userId: user.id,
-      type: "buy",
-      coin: coinName,
-      symbol: sym,
-      amount: coinAmount,
-      usdAmount,
-      price,
-      status: "completed",
-    })
-    .returning();
-
-  res.json({
-    id: tx.id,
-    type: tx.type,
-    coin: tx.coin,
-    symbol: tx.symbol,
-    amount: tx.amount,
-    usdAmount: tx.usdAmount,
-    price: tx.price,
-    status: tx.status,
-    createdAt: tx.createdAt.toISOString(),
-  });
+router.post("/buy", async (_req, res) => {
+  res.status(410).json({ error: "USD trading has been removed. Use Convert to swap between coins." });
 });
 
-router.post("/sell", async (req, res) => {
-  if (!req.session.userId) {
-    res.status(401).json({ error: "Not authenticated" });
-    return;
-  }
-
-  const parsed = SellCryptoBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: "Invalid input" });
-    return;
-  }
-
-  const { symbol, usdAmount } = parsed.data;
-  const assetInfo = await resolveAssetPrice(req, symbol);
-  if (!assetInfo) {
-    res.status(400).json({ error: "Unknown asset" });
-    return;
-  }
-
-  const sym = symbol.toUpperCase();
-  const price = assetInfo.price;
-  const coinAmount = usdAmount / price;
-
-  const [holding] = await db
-    .select()
-    .from(holdingsTable)
-    .where(and(eq(holdingsTable.userId, req.session.userId), eq(holdingsTable.symbol, sym)))
-    .limit(1);
-
-  if (!holding || holding.amount < coinAmount) {
-    res.status(400).json({ error: "Insufficient holdings" });
-    return;
-  }
-
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.session.userId)).limit(1);
-
-  await db.update(usersTable).set({ usdBalance: user.usdBalance + usdAmount }).where(eq(usersTable.id, user.id));
-  await db
-    .update(holdingsTable)
-    .set({ amount: holding.amount - coinAmount, updatedAt: new Date() })
-    .where(eq(holdingsTable.id, holding.id));
-
-  const [tx] = await db
-    .insert(transactionsTable)
-    .values({
-      userId: user.id,
-      type: "sell",
-      coin: holding.coin,
-      symbol: sym,
-      amount: coinAmount,
-      usdAmount,
-      price,
-      status: "completed",
-    })
-    .returning();
-
-  res.json({
-    id: tx.id,
-    type: tx.type,
-    coin: tx.coin,
-    symbol: tx.symbol,
-    amount: tx.amount,
-    usdAmount: tx.usdAmount,
-    price: tx.price,
-    status: tx.status,
-    createdAt: tx.createdAt.toISOString(),
-  });
+router.post("/sell", async (_req, res) => {
+  res.status(410).json({ error: "USD trading has been removed. Use Convert to swap between coins." });
 });
 
 router.post("/deposit", async (req, res) => {
@@ -266,31 +123,8 @@ router.post("/deposit", async (req, res) => {
     return;
   }
 
-  // Fiat deposit: pending until admin approves
-  const [tx] = await db
-    .insert(transactionsTable)
-    .values({
-      userId: user.id,
-      type: "deposit",
-      usdAmount: amount,
-      status: "pending",
-    })
-    .returning();
-
-  sendDepositReceivedEmail(user.email, { usdAmount: amount });
-  notifyAdminDepositReceived(user.name, { usdAmount: amount });
-
-  res.json({
-    id: tx.id,
-    type: tx.type,
-    coin: tx.coin,
-    symbol: tx.symbol,
-    amount: tx.amount,
-    usdAmount: tx.usdAmount,
-    price: tx.price,
-    status: tx.status,
-    createdAt: tx.createdAt.toISOString(),
-  });
+  // Fiat/USD deposits are no longer supported — every deposit must be a specific coin.
+  res.status(400).json({ error: "Fiat deposits are not supported. Choose a coin to deposit." });
 });
 
 router.post("/convert", async (req, res) => {
@@ -408,13 +242,41 @@ router.post("/withdraw", async (req, res) => {
 
   const { amount, method, address } = parsed.data;
 
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.session.userId)).limit(1);
-  if (!user || user.usdBalance < amount) {
-    res.status(400).json({ error: "Insufficient balance" });
+  const sym = methodToSymbol(method);
+  if (!sym) {
+    res.status(400).json({ error: "Unknown withdrawal method. Only crypto withdrawals are supported." });
+    return;
+  }
+  if (amount <= 0) {
+    res.status(400).json({ error: "Amount must be positive" });
     return;
   }
 
-  await db.update(usersTable).set({ usdBalance: user.usdBalance - amount }).where(eq(usersTable.id, user.id));
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.session.userId)).limit(1);
+  if (!user) {
+    res.status(401).json({ error: "User not found" });
+    return;
+  }
+
+  // amount is in coin units — check and debit the coin's balance
+  const [holding] = await db
+    .select()
+    .from(holdingsTable)
+    .where(and(eq(holdingsTable.userId, user.id), eq(holdingsTable.symbol, sym)))
+    .limit(1);
+
+  if (!holding || holding.amount < amount) {
+    res.status(400).json({ error: `Insufficient ${sym} balance` });
+    return;
+  }
+
+  await db
+    .update(holdingsTable)
+    .set({ amount: holding.amount - amount, updatedAt: new Date() })
+    .where(eq(holdingsTable.id, holding.id));
+
+  const assetInfo = await resolveAssetPrice(req, sym);
+  const usdValue = amount * (assetInfo?.price ?? 0);
 
   const [tx] = await db
     .insert(transactionsTable)
@@ -423,13 +285,15 @@ router.post("/withdraw", async (req, res) => {
       type: "withdraw",
       coin: method,
       symbol: address ?? null,
-      usdAmount: amount,
+      amount,
+      usdAmount: usdValue,
+      price: assetInfo?.price ?? null,
       status: "pending",
     })
     .returning();
 
-  sendWithdrawalRequestedEmail(user.email, { amount, method, address });
-  notifyAdminWithdrawalRequested(user.name, { amount, method, address });
+  sendWithdrawalRequestedEmail(user.email, { amount: usdValue, method: `${amount} ${sym} (${method})`, address });
+  notifyAdminWithdrawalRequested(user.name, { amount: usdValue, method: `${amount} ${sym} (${method})`, address });
 
   res.json({
     id: tx.id,

@@ -88,7 +88,6 @@ export default function DashboardOverview() {
               </div>
             )}
             <div className="flex flex-col gap-1.5 text-sm">
-              <span className="text-muted-foreground">Available USD: <span className="text-foreground mono-nums font-medium">{formatCurrency(user.usdBalance)}</span></span>
               {(portfolio?.pendingDeposits ?? 0) > 0 && (
                 <span className="flex items-center gap-1.5 text-muted-foreground">
                   Pending Deposit:&nbsp;

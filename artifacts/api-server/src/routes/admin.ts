@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { db, usersTable, holdingsTable, transactionsTable, siteSettingsTable } from "@workspace/db";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { requireAdmin } from "../lib/admin";
+import { methodToSymbol } from "../lib/withdraw-methods";
 import { COIN_INFO } from "../lib/coins";
 import { DEFAULT_SETTINGS } from "./settings";
 import {
@@ -32,7 +33,7 @@ router.get("/stats", async (_req, res) => {
     totalAdmins: allUsers.filter((u) => u.role === "admin").length,
     verifiedUsers: allUsers.filter((u) => u.kycStatus === "verified").length,
     suspendedUsers: allUsers.filter((u) => u.status === "suspended").length,
-    totalUsdBalance: allUsers.reduce((s, u) => s + u.usdBalance, 0),
+    totalUsdBalance: 0,
     totalCryptoValue,
     pendingDeposits: allTxs.filter((t) => t.type === "deposit" && t.status === "pending").length,
     pendingWithdrawals: allTxs.filter((t) => t.type === "withdraw" && t.status === "pending").length,
@@ -83,29 +84,56 @@ router.patch("/users/:id", async (req, res) => {
   }
 
   const body = req.body as {
-    usdBalance?: number;
     kycStatus?: string;
     role?: string;
     status?: string;
-    adjustBalance?: number;
-    adjustReason?: string;
+    adjustSymbol?: string;
+    adjustAmount?: number;
   };
 
   const updates: Partial<typeof usersTable.$inferInsert> = {};
-  if (typeof body.usdBalance === "number" && Number.isFinite(body.usdBalance)) updates.usdBalance = body.usdBalance;
   if (body.kycStatus && ["unverified", "pending", "verified", "rejected"].includes(body.kycStatus)) updates.kycStatus = body.kycStatus;
   if (body.role && ["user", "admin"].includes(body.role)) updates.role = body.role;
   if (body.status && ["active", "suspended"].includes(body.status)) updates.status = body.status;
 
-  if (typeof body.adjustBalance === "number" && Number.isFinite(body.adjustBalance) && body.adjustBalance !== 0) {
-    const newBalance = (updates.usdBalance ?? target.usdBalance) + body.adjustBalance;
-    updates.usdBalance = Math.max(0, newBalance);
+  // Per-coin balance adjustment (positive = credit, negative = debit)
+  if (
+    typeof body.adjustAmount === "number" &&
+    Number.isFinite(body.adjustAmount) &&
+    body.adjustAmount !== 0 &&
+    typeof body.adjustSymbol === "string" &&
+    body.adjustSymbol.trim()
+  ) {
+    const sym = body.adjustSymbol.trim().toUpperCase();
+    const price = COIN_INFO[sym]?.price ?? 0;
+    const coinName = COIN_INFO[sym]?.name ?? sym;
+    const [holding] = await db
+      .select()
+      .from(holdingsTable)
+      .where(and(eq(holdingsTable.userId, target.id), eq(holdingsTable.symbol, sym)))
+      .limit(1);
+    if (holding) {
+      const newAmount = Math.max(0, holding.amount + body.adjustAmount);
+      await db
+        .update(holdingsTable)
+        .set({ amount: newAmount, updatedAt: new Date() })
+        .where(eq(holdingsTable.id, holding.id));
+    } else if (body.adjustAmount > 0) {
+      await db.insert(holdingsTable).values({
+        userId: target.id,
+        coin: coinName,
+        symbol: sym,
+        amount: body.adjustAmount,
+        avgBuyPrice: price,
+      });
+    }
     await db.insert(transactionsTable).values({
       userId: target.id,
-      type: body.adjustBalance > 0 ? "deposit" : "withdraw",
+      type: body.adjustAmount > 0 ? "deposit" : "withdraw",
       coin: "Admin Adjustment",
-      symbol: null,
-      usdAmount: Math.abs(body.adjustBalance),
+      symbol: sym,
+      amount: Math.abs(body.adjustAmount),
+      usdAmount: Math.abs(body.adjustAmount) * price,
       status: "completed",
     });
   }
@@ -235,10 +263,8 @@ router.post("/transactions/:id/approve", async (req, res) => {
           avgBuyPrice: price,
         });
       }
-    } else {
-      // Fiat deposit
-      await db.update(usersTable).set({ usdBalance: sql`${usersTable.usdBalance} + ${tx.usdAmount}` }).where(eq(usersTable.id, tx.userId));
     }
+    // Fiat deposits are no longer supported — legacy fiat pendings complete without crediting.
   } else if (tx.type === "withdraw") {
     // Balance was already deducted at request time. Approval just finalizes.
   }
@@ -269,9 +295,30 @@ router.post("/transactions/:id/reject", async (req, res) => {
     return;
   }
 
-  if (tx.type === "withdraw") {
-    // Refund the user's balance since it was deducted at request time
-    await db.update(usersTable).set({ usdBalance: sql`${usersTable.usdBalance} + ${tx.usdAmount}` }).where(eq(usersTable.id, tx.userId));
+  if (tx.type === "withdraw" && tx.amount && tx.amount > 0) {
+    // Refund the coin that was debited at request time
+    const sym = tx.coin ? methodToSymbol(tx.coin) : null;
+    if (sym) {
+      const [holding] = await db
+        .select()
+        .from(holdingsTable)
+        .where(and(eq(holdingsTable.userId, tx.userId), eq(holdingsTable.symbol, sym)))
+        .limit(1);
+      if (holding) {
+        await db
+          .update(holdingsTable)
+          .set({ amount: holding.amount + tx.amount, updatedAt: new Date() })
+          .where(eq(holdingsTable.id, holding.id));
+      } else {
+        await db.insert(holdingsTable).values({
+          userId: tx.userId,
+          coin: COIN_INFO[sym]?.name ?? sym,
+          symbol: sym,
+          amount: tx.amount,
+          avgBuyPrice: tx.price ?? COIN_INFO[sym]?.price ?? 0,
+        });
+      }
+    }
   }
   // Deposits: nothing to refund (we never credited)
 

@@ -154,7 +154,6 @@ function OverviewTab({ onChangeTab }: { onChangeTab: (t: Tab) => void }) {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard icon={Users} label="Total Users" value={String(stats.totalUsers)} hint={`${stats.totalAdmins} admin`} />
         <StatCard icon={ShieldCheck} label="KYC Verified" value={String(stats.verifiedUsers)} />
-        <StatCard icon={DollarSign} label="Total USD" value={`$${stats.totalUsdBalance.toLocaleString(undefined, { maximumFractionDigits: 2 })}`} />
         <StatCard icon={Wallet} label="Total Crypto" value={`$${stats.totalCryptoValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}`} />
       </div>
 
@@ -365,10 +364,6 @@ function KycTab() {
                   User #{u.id} · Joined {new Date(u.createdAt).toLocaleDateString()} · {u.experience}
                 </div>
               </div>
-              <div className="text-right">
-                <div className="text-xs text-muted-foreground">Balance</div>
-                <div className="font-display font-bold">${u.usdBalance.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
-              </div>
             </div>
             <div className="p-3 rounded-lg bg-secondary/50 border border-border text-xs text-muted-foreground mb-3">
               KYC submitted — waiting for manual review. Use the buttons below to approve or reject this user's identity verification.
@@ -445,10 +440,6 @@ function UsersTab() {
                   ID #{u.id} · Joined {new Date(u.createdAt).toLocaleDateString()} · {u.experience}
                 </div>
               </div>
-              <div className="text-right">
-                <div className="text-xs text-muted-foreground">USD Balance</div>
-                <div className="font-display font-bold text-lg">${u.usdBalance.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
-              </div>
             </div>
             <div className="flex gap-2 mt-3 pt-3 border-t border-border flex-wrap">
               <Button size="sm" variant="outline" onClick={() => setEditing(u)}>
@@ -490,8 +481,8 @@ function KycChip({ status }: { status: string }) {
 
 function UserEditModal({ user, onClose, onSaved }: { user: User; onClose: () => void; onSaved: () => void }) {
   const queryClient = useQueryClient();
-  const [usdBalance, setUsdBalance] = useState(String(user.usdBalance));
-  const [adjustBalance, setAdjustBalance] = useState("");
+  const [adjustSymbol, setAdjustSymbol] = useState("USDT");
+  const [adjustAmount, setAdjustAmount] = useState("");
   const [kycStatus, setKycStatus] = useState(user.kycStatus);
   const [role, setRole] = useState(user.role);
   const [status, setStatus] = useState(user.status);
@@ -505,13 +496,14 @@ function UserEditModal({ user, onClose, onSaved }: { user: User; onClose: () => 
 
   const submit = () => {
     const data: any = {};
-    const numBal = Number(usdBalance);
-    if (!Number.isNaN(numBal) && numBal !== user.usdBalance) data.usdBalance = numBal;
     if (kycStatus !== user.kycStatus) data.kycStatus = kycStatus;
     if (role !== user.role) data.role = role;
     if (status !== user.status) data.status = status;
-    const adj = Number(adjustBalance);
-    if (adjustBalance && !Number.isNaN(adj) && adj !== 0) data.adjustBalance = adj;
+    const adj = Number(adjustAmount);
+    if (adjustAmount && !Number.isNaN(adj) && adj !== 0) {
+      data.adjustSymbol = adjustSymbol;
+      data.adjustAmount = adj;
+    }
     update.mutate({ id: user.id, data });
   };
 
@@ -526,11 +518,11 @@ function UserEditModal({ user, onClose, onSaved }: { user: User; onClose: () => 
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><XCircle className="w-5 h-5" /></button>
         </div>
         <div className="p-5 space-y-4">
-          <Field label="Set USD Balance directly">
-            <Input type="number" step="0.01" value={usdBalance} onChange={(e) => setUsdBalance(e.target.value)} />
-          </Field>
-          <Field label="Quick adjust (+/− USD, logs as transaction)">
-            <Input type="number" step="0.01" placeholder="e.g. +500 or -200" value={adjustBalance} onChange={(e) => setAdjustBalance(e.target.value)} />
+          <Field label="Adjust coin balance (+/− amount in coin units, logs as transaction)">
+            <div className="flex gap-2">
+              <SelectField value={adjustSymbol} onChange={setAdjustSymbol} options={["USDT", "BTC", "ETH", "BNB", "SOL", "XRP", "LTC", "TRX", "DOGE"]} />
+              <Input type="number" step="any" placeholder="e.g. +500 or -200" value={adjustAmount} onChange={(e) => setAdjustAmount(e.target.value)} />
+            </div>
           </Field>
           <Field label="KYC Status">
             <SelectField value={kycStatus} onChange={(v) => setKycStatus(v as any)} options={["unverified", "pending", "verified", "rejected"]} />

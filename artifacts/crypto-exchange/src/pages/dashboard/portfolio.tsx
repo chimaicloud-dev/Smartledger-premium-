@@ -305,10 +305,11 @@ export default function PortfolioPage() {
               <Card className="p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <div className="text-sm text-muted-foreground">Fiat (USD) Balance</div>
-                    <div className="text-2xl font-bold mono-nums text-foreground">{hide(formatCurrency(portfolio.usdBalance))}</div>
+                    <div className="text-sm text-muted-foreground">Account Funds</div>
+                    <div className="text-2xl font-bold mono-nums text-foreground">{hide(formatCurrency(portfolio.totalValue))}</div>
+                    <div className="text-xs text-muted-foreground mt-1">Held across your coin balances</div>
                   </div>
-                  <div className="w-12 h-12 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-300 font-bold text-xl">$</div>
+                  <div className="w-12 h-12 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-300 font-bold text-xl">Ξ</div>
                 </div>
                 <div className="flex gap-2">
                   <Link href="/dashboard/deposit"><Button variant="secondary" size="sm">Deposit</Button></Link>

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { DashboardLayout } from "@/components/layout";
 import { Card, Button, Input } from "@/components/ui/shared";
 import { useAuth } from "@/hooks/use-auth";
-import { useGetMarketPrices, useGetForexPrices, useBuyCrypto, useSellCrypto, useGetPortfolio, useDeposit } from "@workspace/api-client-react";
+import { useGetMarketPrices, useGetForexPrices, useConvertCrypto, useGetPortfolio, useDeposit } from "@workspace/api-client-react";
 import { formatCurrency, formatPercent, cn, formatCrypto } from "@/lib/utils";
 import {
   Search, TrendingUp, TrendingDown, Zap, Shield, Rocket, Crown, Star,
@@ -441,7 +441,7 @@ function PlanModal({ plan, onClose, userBalance, onSuccess }: {
   };
 
   const onConfirm = () => {
-    depositMutation.mutate({ data: { amount: monthlyEarning, method: `${plan.name} Plan` } });
+    depositMutation.mutate({ data: { amount: monthlyEarning, method: `${plan.name} Plan`, symbol: "USDT" } });
   };
 
   return (
@@ -919,27 +919,15 @@ export default function InvestPage() {
   const [tradeError, setTradeError] = useState<string | null>(null);
   const [orderPreview, setOrderPreview] = useState<OrderPreview | null>(null);
 
-  const buyMutation = useBuyCrypto({
+  const convertMutation = useConvertCrypto({
     mutation: {
       onSuccess: () => {
-        setTradeSuccess(`Order filled — bought ${orderPreview?.symbol ?? selectedSymbol}`);
-        setOrderPreview(null);
-        queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/portfolio"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/transactions"] });
-        reset();
-      },
-      onError: (err: any) => {
-        setTradeError(err.message || "Failed to complete trade");
-        setOrderPreview(null);
-      },
-    }
-  });
-
-  const sellMutation = useSellCrypto({
-    mutation: {
-      onSuccess: () => {
-        setTradeSuccess(`Position closed — sold ${orderPreview?.symbol ?? selectedSymbol}`);
+        const wasBuy = orderPreview?.tradeType === "buy";
+        setTradeSuccess(
+          wasBuy
+            ? `Order filled — bought ${orderPreview?.symbol ?? selectedSymbol}`
+            : `Position closed — sold ${orderPreview?.symbol ?? selectedSymbol}`
+        );
         setOrderPreview(null);
         queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
         queryClient.invalidateQueries({ queryKey: ["/api/portfolio"] });
@@ -971,7 +959,8 @@ export default function InvestPage() {
 
   const selectedCoin = markets?.find(c => c.symbol === selectedSymbol);
   const holding = portfolio?.holdings.find(h => h.symbol === selectedSymbol);
-  const maxBuy = user?.usdBalance || 0;
+  const usdtBalance = portfolio?.holdings.find(h => h.symbol === "USDT")?.amount || 0;
+  const maxBuy = usdtBalance;
 
   const lotsNum = Math.max(0.01, parseFloat(lots) || 0.01);
 
@@ -1004,9 +993,11 @@ export default function InvestPage() {
   const confirmOrder = () => {
     if (!orderPreview) return;
     if (orderPreview.tradeType === "buy") {
-      buyMutation.mutate({ data: { symbol: orderPreview.symbol, usdAmount: orderPreview.usdAmount } });
+      // Spend USDT to acquire the asset (USDT ≈ USD)
+      convertMutation.mutate({ data: { fromSymbol: "USDT", toSymbol: orderPreview.symbol, fromAmount: orderPreview.usdAmount } });
     } else {
-      sellMutation.mutate({ data: { symbol: orderPreview.symbol, usdAmount: orderPreview.usdAmount } });
+      // Sell the asset back into USDT
+      convertMutation.mutate({ data: { fromSymbol: orderPreview.symbol, toSymbol: "USDT", fromAmount: orderPreview.coinAmount } });
     }
   };
 
@@ -1034,7 +1025,7 @@ export default function InvestPage() {
     });
   };
 
-  const isPending = buyMutation.isPending || sellMutation.isPending;
+  const isPending = convertMutation.isPending;
 
   return (
     <DashboardLayout>
@@ -1042,7 +1033,7 @@ export default function InvestPage() {
       {openPlan && (
         <PlanModal
           plan={openPlan}
-          userBalance={user?.usdBalance || 0}
+          userBalance={usdtBalance}
           onClose={() => setOpenPlan(null)}
           onSuccess={(plan, amount) => {
             setActivePlans(prev => ({ ...prev, [plan.id]: amount }));
@@ -1084,7 +1075,7 @@ export default function InvestPage() {
             </button>
           </div>
           <span className="text-sm text-muted-foreground">
-            Balance: <span className="text-foreground font-semibold">{formatCurrency(user?.usdBalance || 0)}</span>
+            Balance: <span className="text-foreground font-semibold">{formatCurrency(usdtBalance)} <span className="text-muted-foreground font-normal">USDT</span></span>
           </span>
         </div>
 
