@@ -1,21 +1,23 @@
 import nodemailer from "nodemailer";
 import type { Transporter } from "nodemailer";
 
-// Gmail account used for SMTP authentication
-const SMTP_USER = process.env.GMAIL_USER || "officialsmartledgerpremium@gmail.com";
-// Address shown as the sender. Must be added as a "Send mail as" alias in the
-// Gmail account settings, otherwise Gmail rewrites it back to the SMTP user.
-const FROM_ADDRESS = process.env.EMAIL_FROM || "support@smartledger-premium.com";
+// SMTP account for the support mailbox (no Gmail involved)
+const SMTP_USER = process.env.SMTP_USER || "support@smartledger-premium.com";
+const FROM_ADDRESS = process.env.EMAIL_FROM || SMTP_USER;
 const FROM_NAME = "SmartLedger Premium";
 
 let transporter: Transporter | null = null;
 
 function getTransporter(): Transporter | null {
-  const pass = process.env.GMAIL_APP_PASSWORD;
-  if (!pass) return null;
+  const host = process.env.SMTP_HOST;
+  const pass = process.env.SMTP_PASSWORD;
+  if (!host || !pass) return null;
   if (!transporter) {
+    const port = Number(process.env.SMTP_PORT || 465);
     transporter = nodemailer.createTransport({
-      service: "gmail",
+      host,
+      port,
+      secure: port === 465,
       auth: { user: SMTP_USER, pass },
     });
   }
@@ -124,7 +126,7 @@ export async function sendEmail(to: string, subject: string, html: string): Prom
   }
   const t = getTransporter();
   if (!t) {
-    console.warn("[email] GMAIL_APP_PASSWORD not set; skipping email:", subject);
+    console.warn("[email] SMTP_HOST / SMTP_PASSWORD not set; skipping email:", subject);
     return;
   }
   try {
