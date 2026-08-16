@@ -161,13 +161,20 @@ router.get("/investments", async (req, res) => {
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
-  await accrueInvestments(req.session.userId);
-  const rows = await db
-    .select()
-    .from(investmentsTable)
-    .where(eq(investmentsTable.userId, req.session.userId))
-    .orderBy(desc(investmentsTable.startedAt));
-  res.json(rows.map(serialize));
+  // Never blank the invest page if the investments table is missing (e.g. a
+  // not-yet-migrated production DB) — return an empty list instead of a 500.
+  try {
+    await accrueInvestments(req.session.userId);
+    const rows = await db
+      .select()
+      .from(investmentsTable)
+      .where(eq(investmentsTable.userId, req.session.userId))
+      .orderBy(desc(investmentsTable.startedAt));
+    res.json(rows.map(serialize));
+  } catch (err) {
+    req.log.error({ err }, "investments.list_failed");
+    res.json([]);
+  }
 });
 
 const CreateInvestmentBody = z.object({

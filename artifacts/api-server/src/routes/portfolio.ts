@@ -26,8 +26,14 @@ router.get("/", async (req, res) => {
   }
 
   // Pay out any due daily investment earnings / release matured capital first
-  // so the balances below are always up to date.
-  await accrueInvestments(req.session.userId);
+  // so the balances below are always up to date. Never let an accrual failure
+  // (e.g. the investments table missing in a not-yet-migrated production DB)
+  // take down the whole portfolio — balances must still render.
+  try {
+    await accrueInvestments(req.session.userId);
+  } catch (err) {
+    req.log.error({ err }, "portfolio.accrue_failed");
+  }
 
   const holdings = await db.select().from(holdingsTable).where(eq(holdingsTable.userId, req.session.userId));
   const priceMap = await getPriceMap(req);
