@@ -4,6 +4,7 @@ import { eq, and, sql } from "drizzle-orm";
 import { DepositBody, WithdrawBody, ConvertCryptoBody } from "@workspace/api-zod";
 import { fetchForexPrices, getForexAssetMeta } from "../lib/forex";
 import { COIN_INFO } from "../lib/coins";
+import { getPriceMap } from "./market";
 import { methodToSymbol } from "../lib/withdraw-methods";
 import { sendWithdrawalRequestedEmail, sendDepositReceivedEmail, notifyAdminDepositReceived, notifyAdminWithdrawalRequested } from "../lib/email";
 
@@ -15,7 +16,17 @@ declare module "express-session" {
 
 async function resolveAssetPrice(req: Request, symbol: string): Promise<{ name: string; price: number } | null> {
   const sym = symbol.toUpperCase();
-  if (COIN_INFO[sym]) return COIN_INFO[sym];
+  if (COIN_INFO[sym]) {
+    // Prefer the live market rate; COIN_INFO's static price is only a fallback
+    // (otherwise deposits get recorded at stale rates like BTC = $67,500).
+    try {
+      const live = (await getPriceMap(req))[sym];
+      if (live && live > 0) return { name: COIN_INFO[sym].name, price: live };
+    } catch {
+      // fall through to static price
+    }
+    return COIN_INFO[sym];
+  }
 
   const meta = getForexAssetMeta(sym);
   if (!meta) return null;

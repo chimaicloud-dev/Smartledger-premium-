@@ -5,6 +5,19 @@ import { eq, and, desc, sql } from "drizzle-orm";
 import { requireAdmin } from "../lib/admin";
 import { methodToSymbol } from "../lib/withdraw-methods";
 import { COIN_INFO } from "../lib/coins";
+import { getPriceMap } from "./market";
+
+// Live market price with static fallback — avoids recording holdings at
+// stale COIN_INFO rates (e.g. BTC = $67,500).
+async function livePrice(req: Parameters<typeof getPriceMap>[0], sym: string): Promise<number> {
+  try {
+    const p = (await getPriceMap(req))[sym];
+    if (p && p > 0) return p;
+  } catch {
+    // fall through
+  }
+  return COIN_INFO[sym]?.price ?? 0;
+}
 import { DEFAULT_SETTINGS } from "./settings";
 import {
   sendDepositApprovedEmail,
@@ -105,7 +118,7 @@ router.patch("/users/:id", async (req, res) => {
     body.adjustSymbol.trim()
   ) {
     const sym = body.adjustSymbol.trim().toUpperCase();
-    const price = COIN_INFO[sym]?.price ?? 0;
+    const price = await livePrice(req, sym);
     const coinName = COIN_INFO[sym]?.name ?? sym;
     const [holding] = await db
       .select()
@@ -250,7 +263,7 @@ router.post("/transactions/:id/approve", async (req, res) => {
     // Kept for admin visibility / manual override of old pending deposits.
     if (tx.symbol && tx.amount && tx.amount > 0) {
       const sym = tx.symbol;
-      const price = tx.price ?? COIN_INFO[sym]?.price ?? 0;
+      const price = tx.price ?? (await livePrice(req, sym));
       const coinName = tx.coin ?? COIN_INFO[sym]?.name ?? sym;
       const [existing] = await db
         .select()
@@ -328,7 +341,7 @@ router.post("/transactions/:id/reject", async (req, res) => {
           coin: COIN_INFO[sym]?.name ?? sym,
           symbol: sym,
           amount: tx.amount,
-          avgBuyPrice: tx.price ?? COIN_INFO[sym]?.price ?? 0,
+          avgBuyPrice: tx.price ?? (await livePrice(req, sym)),
         });
       }
     }
