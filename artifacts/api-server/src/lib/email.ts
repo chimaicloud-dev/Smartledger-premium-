@@ -365,7 +365,8 @@ export function sendPasswordResetEmail(to: string, resetUrl: string): void {
 }
 // ---------- admin notifications ----------
 
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "officialsmartledgerpremium@gmail.com";
+// Admin notifications go to the support mailbox by default (override with ADMIN_NOTIFY_EMAIL).
+const ADMIN_EMAIL = process.env.ADMIN_NOTIFY_EMAIL || SMTP_USER;
 
 export function notifyAdminDepositReceived(
   userName: string,
