@@ -29,13 +29,28 @@ declare global {
 function SmartSuppController() {
   const [location] = useLocation();
   useEffect(() => {
-    const fn = window.smartsupp;
-    if (typeof fn !== "function") return;
-    if (location === "/") {
-      fn("chat:show");
-    } else {
-      fn("chat:hide");
-    }
+    const showChat = location === "/";
+
+    const apply = () => {
+      const fn = window.smartsupp;
+      if (typeof fn === "function") {
+        fn(showChat ? "chat:show" : "chat:hide");
+      }
+      // Belt and braces: the widget can ignore commands queued before its
+      // loader finishes, so also toggle the rendered container directly.
+      const el = document.getElementById("smartsupp-widget-container");
+      if (el) el.style.display = showChat ? "" : "none";
+    };
+
+    apply();
+    // Re-apply until the widget has actually loaded (loader is async and
+    // can land after this effect runs, e.g. on a hard refresh of /dashboard).
+    const interval = window.setInterval(apply, 500);
+    const stop = window.setTimeout(() => window.clearInterval(interval), 15000);
+    return () => {
+      window.clearInterval(interval);
+      window.clearTimeout(stop);
+    };
   }, [location]);
   return null;
 }
