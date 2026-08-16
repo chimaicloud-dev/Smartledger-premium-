@@ -1,3 +1,4 @@
+import { apiErrorMessage } from "@/lib/api-error";
 import { useState } from "react";
 import { DashboardLayout } from "@/components/layout";
 import { Card, Button, Input } from "@/components/ui/shared";
@@ -21,7 +22,7 @@ function KycModal({ onClose }: { onClose: () => void }) {
         setSuccess(true);
         setTimeout(onClose, 1800);
       },
-      onError: (err: any) => setError(err?.message || "Verification failed. Please try again."),
+      onError: (err: any) => setError(apiErrorMessage(err, "Verification failed. Please try again.")),
     },
   });
 
@@ -114,7 +115,7 @@ function ChangePasswordSection() {
         setForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
         setTimeout(() => setSuccess(false), 4000);
       },
-      onError: (err: any) => setError(err?.message || "Failed to change password. Please try again."),
+      onError: (err: any) => setError(apiErrorMessage(err, "Failed to change password. Please try again.")),
     },
   });
 

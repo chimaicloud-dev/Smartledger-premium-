@@ -1,3 +1,4 @@
+import { apiErrorMessage } from "@/lib/api-error";
 import { useEffect, useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
@@ -605,7 +606,7 @@ function CreateAdminModal({ onClose, onSaved }: { onClose: () => void; onSaved: 
         </div>
         {create.isError && (
           <div className="mx-5 mb-3 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-sm text-red-400">
-            {(create.error as any)?.message || "Failed to create admin. Check email and try again."}
+            {apiErrorMessage(create.error, "Failed to create admin. Check email and try again.")}
           </div>
         )}
         {create.isSuccess && (

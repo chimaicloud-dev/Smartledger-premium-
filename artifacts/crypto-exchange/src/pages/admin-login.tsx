@@ -1,3 +1,4 @@
+import { apiErrorMessage } from "@/lib/api-error";
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { ShieldCheck, Eye, EyeOff, Lock, AlertCircle } from "lucide-react";
@@ -40,7 +41,7 @@ export default function AdminLoginPage() {
       }
       setLocation("/admin");
     } catch (err: any) {
-      setError(err.message);
+      setError(apiErrorMessage(err, "Failed to login. Please try again."));
     } finally {
       setLoading(false);
     }

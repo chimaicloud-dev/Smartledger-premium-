@@ -1,3 +1,4 @@
+import { apiErrorMessage } from "@/lib/api-error";
 import { useMemo, useState } from "react";
 import { DashboardLayout } from "@/components/layout";
 import { Card, Button } from "@/components/ui/shared";
@@ -144,7 +145,7 @@ export default function ConvertPage() {
   };
 
   const errorMsg = convertMutation.error
-    ? ((convertMutation.error as any)?.response?.data?.error || "Conversion failed")
+    ? apiErrorMessage(convertMutation.error, "Conversion failed")
     : null;
 
   if (success) {

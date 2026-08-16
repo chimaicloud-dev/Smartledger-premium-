@@ -1,3 +1,4 @@
+import { apiErrorMessage } from "@/lib/api-error";
 import { useState } from "react";
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
@@ -29,7 +30,7 @@ export default function LoginPage() {
       setError(null);
       await login(data);
     } catch (err: any) {
-      setError(err.message || "Failed to login. Please check your credentials.");
+      setError(apiErrorMessage(err, "Failed to login. Please check your credentials."));
     }
   };
 

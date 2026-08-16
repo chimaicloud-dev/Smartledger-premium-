@@ -1,3 +1,4 @@
+import { apiErrorMessage } from "@/lib/api-error";
 import { useState, useEffect, useRef } from "react";
 import { DashboardLayout } from "@/components/layout";
 import { Card, Button, Input } from "@/components/ui/shared";
@@ -945,7 +946,7 @@ export default function InvestPage() {
         reset();
       },
       onError: (err: any) => {
-        setTradeError(err.message || "Failed to complete trade");
+        setTradeError(apiErrorMessage(err, "Failed to complete trade"));
         setOrderPreview(null);
       },
     }

@@ -1,3 +1,4 @@
+import { apiErrorMessage } from "@/lib/api-error";
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
@@ -90,7 +91,7 @@ export default function RegisterPage() {
       const { confirmPassword, ...payload } = data;
       await registerUser(payload as any);
     } catch (err: any) {
-      setError(err.message || "Failed to register. Please try again.");
+      setError(apiErrorMessage(err, "Failed to register. Please try again."));
     }
   };
 
