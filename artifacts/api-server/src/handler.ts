@@ -1,6 +1,7 @@
 import app, { sessionStore } from "./app";
 import { pool } from "@workspace/db";
 import { bootstrapAdmin } from "./lib/admin";
+import { cleanupExpiredResetTokens } from "./lib/cleanupResetTokens";
 import { logger } from "./lib/logger";
 
 // Single shared init promise — all requests wait for it on cold start
@@ -30,6 +31,8 @@ async function init(): Promise<void> {
   await bootstrapAdmin(logger).catch((err) => {
     logger.error({ err }, "admin.bootstrap.failed");
   });
+  // Run once on cold start; the Vercel cron hits /api/cron/cleanup daily for reliability
+  await cleanupExpiredResetTokens(logger);
 }
 
 // Export a handler that guarantees init is complete before Express handles the request

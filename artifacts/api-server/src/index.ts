@@ -1,6 +1,7 @@
 import app, { sessionStore } from "./app";
 import { logger } from "./lib/logger";
 import { bootstrapAdmin } from "./lib/admin";
+import { scheduleResetTokenCleanup } from "./lib/cleanupResetTokens";
 import { pool } from "@workspace/db";
 
 const rawPort = process.env["PORT"];
@@ -55,5 +56,6 @@ app.listen(port, (err) => {
   void waitForDatabase().then(async () => {
     await sessionStore.init();
     await bootstrapAdmin(logger);
+    scheduleResetTokenCleanup(logger);
   });
 });
