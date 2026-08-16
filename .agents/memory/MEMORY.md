@@ -1,0 +1,2 @@
+- [Deploy & push workflow](deploy-push.md) — code ships only via git push to GitHub (Vercel auto-deploys); dev DB schema changes must be mirrored on the prod DB separately.
+- [Money-safety rules](money-safety.md) — all balance changes use atomic conditional UPDATEs inside DB transactions; investment payouts claim periods compare-and-set before crediting.

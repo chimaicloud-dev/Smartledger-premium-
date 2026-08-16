@@ -711,7 +711,7 @@ function SettingsTab() {
     }
   };
 
-  const PAYMENT_KEYS = ["payment_btc_address","payment_eth_address","payment_usdt_trc20_address","payment_usdt_erc20_address","payment_bank_name","payment_bank_account_name","payment_bank_account_number","payment_bank_routing","payment_bank_swift"];
+  const PAYMENT_KEYS = ["payment_btc_address","payment_eth_address","payment_usdt_trc20_address","payment_usdt_erc20_address","payment_bnb_address","payment_sol_address","payment_xrp_address","payment_ltc_address","payment_trx_address","payment_doge_address","payment_bank_name","payment_bank_account_name","payment_bank_account_number","payment_bank_routing","payment_bank_swift"];
   const HOME_KEYS = ["home_hero_title","home_hero_subtitle","home_badge_text","home_feature1_title","home_feature1_desc","home_feature2_title","home_feature2_desc"];
   const EMAIL_KEYS = ["email_smtp_host","email_smtp_port","email_smtp_user","email_smtp_pass","email_from_name","email_from_address","email_support_address"];
 
@@ -754,6 +754,12 @@ function SettingsTab() {
               <SettingsField label="Ethereum — ERC-20 (ETH)" value={s("payment_eth_address")} onChange={(v) => upd("payment_eth_address", v)} placeholder="0x..." mono />
               <SettingsField label="USDT — TRC-20 (Tron)" value={s("payment_usdt_trc20_address")} onChange={(v) => upd("payment_usdt_trc20_address", v)} placeholder="T..." mono />
               <SettingsField label="USDT — ERC-20 (Ethereum)" value={s("payment_usdt_erc20_address")} onChange={(v) => upd("payment_usdt_erc20_address", v)} placeholder="0x..." mono />
+              <SettingsField label="BNB — BNB Smart Chain" value={s("payment_bnb_address")} onChange={(v) => upd("payment_bnb_address", v)} placeholder="bnb..." mono />
+              <SettingsField label="Solana (SOL)" value={s("payment_sol_address")} onChange={(v) => upd("payment_sol_address", v)} placeholder="Solana address" mono />
+              <SettingsField label="XRP — XRP Ledger" value={s("payment_xrp_address")} onChange={(v) => upd("payment_xrp_address", v)} placeholder="r..." mono />
+              <SettingsField label="Litecoin (LTC)" value={s("payment_ltc_address")} onChange={(v) => upd("payment_ltc_address", v)} placeholder="L..." mono />
+              <SettingsField label="Tron (TRX)" value={s("payment_trx_address")} onChange={(v) => upd("payment_trx_address", v)} placeholder="T..." mono />
+              <SettingsField label="Dogecoin (DOGE)" value={s("payment_doge_address")} onChange={(v) => upd("payment_doge_address", v)} placeholder="D..." mono />
             </div>
           </div>
 

@@ -219,6 +219,12 @@ export default function DepositPage() {
     eth: "payment_eth_address",
     usdt_trc20: "payment_usdt_trc20_address",
     usdt_erc20: "payment_usdt_erc20_address",
+    bnb: "payment_bnb_address",
+    sol: "payment_sol_address",
+    xrp: "payment_xrp_address",
+    ltc: "payment_ltc_address",
+    trx: "payment_trx_address",
+    doge: "payment_doge_address",
   };
   const currentAddr = (ADDR_KEY[selected.id] && settingsAddrs[ADDR_KEY[selected.id]]) || selected.address;
 
