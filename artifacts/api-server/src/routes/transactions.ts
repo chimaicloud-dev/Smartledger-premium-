@@ -268,6 +268,16 @@ router.post("/withdraw", async (req, res) => {
     return;
   }
 
+  // Withdrawals require a verified KYC. Deposits, investments, and everything
+  // else remain open to unverified users.
+  if (user.kycStatus !== "verified") {
+    res.status(403).json({
+      error: "KYC_REQUIRED",
+      message: "Please complete KYC verification before making a withdrawal.",
+    });
+    return;
+  }
+
   // amount is in coin units — check and debit the coin's balance
   const [holding] = await db
     .select()

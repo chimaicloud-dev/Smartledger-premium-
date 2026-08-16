@@ -3,9 +3,10 @@ import { DashboardLayout } from "@/components/layout";
 import { useWithdraw, useGetPortfolio } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/use-auth";
 import {
   CheckCircle2, AlertCircle, ChevronRight, Clock,
-  ArrowUpFromLine, Copy, Info, Loader2, ExternalLink
+  ArrowUpFromLine, Copy, Info, Loader2, ExternalLink, ShieldCheck
 } from "lucide-react";
 
 // fee is denominated in the coin itself
@@ -29,7 +30,9 @@ function fmtCoin(n: number, sym: string) {
 
 export default function WithdrawPage() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const { data: portfolio } = useGetPortfolio();
+  const kycVerified = user?.kycStatus === "verified";
   const [selectedCrypto, setSelectedCrypto] = useState(CRYPTO_METHODS[0]);
   const [amount, setAmount] = useState("");
   const [cryptoAddress, setCryptoAddress] = useState("");
@@ -255,6 +258,49 @@ export default function WithdrawPage() {
             >
               <ExternalLink className="w-4 h-4" /> History
             </button>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (!kycVerified) {
+    return (
+      <DashboardLayout>
+        <div className="max-w-xl mx-auto py-10">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+              <ArrowUpFromLine className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">Withdraw</h1>
+              <p className="text-sm text-muted-foreground">Send crypto to an external wallet</p>
+            </div>
+          </div>
+
+          <div className="bg-card border border-border rounded-2xl p-8 text-center space-y-5">
+            <div className="w-16 h-16 mx-auto rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center">
+              <ShieldCheck className="w-8 h-8 text-amber-400" />
+            </div>
+            <div className="space-y-1.5">
+              <h2 className="text-lg font-bold text-foreground">Verify your identity to withdraw</h2>
+              <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                For your security, withdrawals require a completed KYC verification.
+                You can still deposit, invest, and trade in the meantime — only withdrawals are locked until you're verified.
+              </p>
+            </div>
+            {user?.kycStatus === "pending" ? (
+              <div className="inline-flex items-center gap-2 text-sm font-medium text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-2.5">
+                <Clock className="w-4 h-4" /> Your KYC is under review — we'll notify you once it's approved.
+              </div>
+            ) : (
+              <a
+                href="/dashboard/settings"
+                className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:bg-primary/90 transition-colors"
+              >
+                <ShieldCheck className="w-4 h-4" /> Complete KYC Verification
+              </a>
+            )}
           </div>
         </div>
       </DashboardLayout>
