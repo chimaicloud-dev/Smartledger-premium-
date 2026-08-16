@@ -1,7 +1,11 @@
 import nodemailer from "nodemailer";
 import type { Transporter } from "nodemailer";
 
-const FROM_ADDRESS = process.env.GMAIL_USER || "officialsmartledgerpremium@gmail.com";
+// Gmail account used for SMTP authentication
+const SMTP_USER = process.env.GMAIL_USER || "officialsmartledgerpremium@gmail.com";
+// Address shown as the sender. Must be added as a "Send mail as" alias in the
+// Gmail account settings, otherwise Gmail rewrites it back to the SMTP user.
+const FROM_ADDRESS = process.env.EMAIL_FROM || "support@smartledger-premium.com";
 const FROM_NAME = "SmartLedger Premium";
 
 let transporter: Transporter | null = null;
@@ -12,7 +16,7 @@ function getTransporter(): Transporter | null {
   if (!transporter) {
     transporter = nodemailer.createTransport({
       service: "gmail",
-      auth: { user: FROM_ADDRESS, pass },
+      auth: { user: SMTP_USER, pass },
     });
   }
   return transporter;
