@@ -118,6 +118,17 @@ export function renderEmail(opts: {
 // display-name tricks so a user-supplied value can never fan out to other recipients.
 const SINGLE_EMAIL_RE = /^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/;
 
+const EMAIL_MAX_ATTEMPTS = 2; // 1 initial attempt + 1 retry
+const EMAIL_RETRY_DELAY_MS = 3_000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Attempts to send an email up to EMAIL_MAX_ATTEMPTS times.
+ * Throws on final failure so the caller can surface the error.
+ */
 export async function sendEmail(to: string, subject: string, html: string): Promise<void> {
   const recipient = to.trim();
   if (!SINGLE_EMAIL_RE.test(recipient)) {
@@ -129,26 +140,51 @@ export async function sendEmail(to: string, subject: string, html: string): Prom
     console.warn("[email] SMTP_HOST / SMTP_PASSWORD not set; skipping email:", subject);
     return;
   }
-  try {
-    await t.sendMail({
-      from: `"${FROM_NAME}" <${FROM_ADDRESS}>`,
-      to: recipient,
-      subject,
-      html,
-    });
-  } catch (err) {
-    console.error("[email] failed to send:", subject, err);
+
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= EMAIL_MAX_ATTEMPTS; attempt++) {
+    try {
+      await t.sendMail({
+        from: `"${FROM_NAME}" <${FROM_ADDRESS}>`,
+        to: recipient,
+        subject,
+        html,
+      });
+      return; // success
+    } catch (err) {
+      lastErr = err;
+      if (attempt < EMAIL_MAX_ATTEMPTS) {
+        console.warn(
+          `[email] attempt ${attempt}/${EMAIL_MAX_ATTEMPTS} failed for "${subject}"; retrying in ${EMAIL_RETRY_DELAY_MS}ms…`,
+          err
+        );
+        await sleep(EMAIL_RETRY_DELAY_MS);
+      }
+    }
   }
+
+  // All attempts exhausted — throw so dispatch() can log the alert.
+  throw lastErr;
 }
 
 // On Vercel, the serverless invocation may be frozen as soon as the HTTP
 // response is sent, killing in-flight SMTP sockets. waitUntil() keeps the
 // invocation alive until the send promise settles. Outside Vercel it's a no-op.
-function dispatch(p: Promise<void>): void {
+function dispatch(sendPromise: Promise<void>, subject: string, to: string): void {
+  const settled = sendPromise.catch((err) => {
+    // All retries exhausted. Emit a prominent, monitorable alert so the admin
+    // can notice the failure even when the email notification itself never arrived.
+    const masked = to.replace(/^(.{2}).*(@.*)$/, "$1***$2");
+    console.error(
+      `[EMAIL_FAILURE_ALERT] Could not deliver email after ${EMAIL_MAX_ATTEMPTS} attempts.`,
+      { subject, to: masked, error: String(err) }
+    );
+  });
+
   void (async () => {
     try {
       const { waitUntil } = await import("@vercel/functions");
-      waitUntil(p);
+      waitUntil(settled);
     } catch {
       // not running on Vercel (or helper unavailable) — best-effort send
     }
@@ -186,7 +222,7 @@ export function sendWelcomeEmail(to: string, name: string): void {
     ],
     outro: "If you did not create this account, please contact our support team immediately.",
   });
-  dispatch(sendEmail(to, "Welcome to SmartLedger Premium", html));
+  dispatch(sendEmail(to, "Welcome to SmartLedger Premium", html), "Welcome to SmartLedger Premium", to);
 }
 
 export function sendWithdrawalRequestedEmail(
@@ -208,7 +244,8 @@ export function sendWithdrawalRequestedEmail(
     rows,
     outro: "Your withdrawal is being reviewed by our team. You will receive another email once it has been processed.",
   });
-  dispatch(sendEmail(to, `Withdrawal Requested — ${fmtUsd(data.amount)}`, html));
+  const subject = `Withdrawal Requested — ${fmtUsd(data.amount)}`;
+  dispatch(sendEmail(to, subject, html), subject, to);
 }
 
 export function sendWithdrawalCompletedEmail(
@@ -230,7 +267,8 @@ export function sendWithdrawalCompletedEmail(
     rows,
     outro: "Your funds have been sent. Depending on the network or bank, it may take some time to arrive.",
   });
-  dispatch(sendEmail(to, `Withdrawal Completed — ${fmtUsd(data.amount)}`, html));
+  const subject = `Withdrawal Completed — ${fmtUsd(data.amount)}`;
+  dispatch(sendEmail(to, subject, html), subject, to);
 }
 
 export function sendWithdrawalRejectedEmail(to: string, data: { amount: number; method: string }): void {
@@ -245,7 +283,7 @@ export function sendWithdrawalRejectedEmail(to: string, data: { amount: number; 
     ],
     outro: "The withdrawn amount has been returned to your account balance. Please contact support if you believe this was a mistake.",
   });
-  dispatch(sendEmail(to, "Withdrawal Rejected", html));
+  dispatch(sendEmail(to, "Withdrawal Rejected", html), "Withdrawal Rejected", to);
 }
 
 export function sendDepositReceivedEmail(
@@ -267,7 +305,8 @@ export function sendDepositReceivedEmail(
     rows,
     outro: "Your deposit is awaiting confirmation by our team. Your balance will be credited once it has been approved.",
   });
-  dispatch(sendEmail(to, `Deposit Received — ${fmtUsd(data.usdAmount)}`, html));
+  const subject = `Deposit Received — ${fmtUsd(data.usdAmount)}`;
+  dispatch(sendEmail(to, subject, html), subject, to);
 }
 
 export function sendDepositApprovedEmail(
@@ -289,7 +328,8 @@ export function sendDepositApprovedEmail(
     rows,
     outro: "Your deposit has been confirmed and your balance has been credited. Happy trading!",
   });
-  dispatch(sendEmail(to, `Deposit Approved — ${fmtUsd(data.usdAmount)}`, html));
+  const subject = `Deposit Approved — ${fmtUsd(data.usdAmount)}`;
+  dispatch(sendEmail(to, subject, html), subject, to);
 }
 
 export function sendDepositRejectedEmail(to: string, data: { usdAmount: number }): void {
@@ -303,7 +343,7 @@ export function sendDepositRejectedEmail(to: string, data: { usdAmount: number }
     ],
     outro: "Your deposit could not be confirmed. Please contact support for more information.",
   });
-  dispatch(sendEmail(to, "Deposit Rejected", html));
+  dispatch(sendEmail(to, "Deposit Rejected", html), "Deposit Rejected", to);
 }
 
 export function sendPasswordResetEmail(to: string, resetUrl: string): void {
@@ -317,7 +357,7 @@ export function sendPasswordResetEmail(to: string, resetUrl: string): void {
     ],
     outro: `<a href="${resetUrl}" style="display:inline-block;margin-top:8px;padding:14px 28px;background-color:${GOLD};color:#0E0F12;font-weight:700;font-size:15px;border-radius:10px;text-decoration:none;">Reset Password</a><br><br>If you did not request a password reset, you can safely ignore this email — your password will remain unchanged.`,
   });
-  dispatch(sendEmail(to, "Reset Your Password — SmartLedger Premium", html));
+  dispatch(sendEmail(to, "Reset Your Password — SmartLedger Premium", html), "Reset Your Password — SmartLedger Premium", to);
 }
 // ---------- admin notifications ----------
 
@@ -342,7 +382,8 @@ export function notifyAdminDepositReceived(
     rows,
     outro: "A user has submitted a deposit. Please log in to the admin panel to review and approve or reject it.",
   });
-  dispatch(sendEmail(ADMIN_EMAIL, `[Admin] New Deposit — ${fmtUsd(data.usdAmount)} from ${userName}`, html));
+  const subject = `[Admin] New Deposit — ${fmtUsd(data.usdAmount)} from ${userName}`;
+  dispatch(sendEmail(ADMIN_EMAIL, subject, html), subject, ADMIN_EMAIL);
 }
 
 export function notifyAdminWithdrawalRequested(
@@ -362,7 +403,8 @@ export function notifyAdminWithdrawalRequested(
     rows,
     outro: "A user has requested a withdrawal. Please log in to the admin panel to review and approve or reject it.",
   });
-  dispatch(sendEmail(ADMIN_EMAIL, `[Admin] New Withdrawal — ${fmtUsd(data.amount)} from ${userName}`, html));
+  const subject = `[Admin] New Withdrawal — ${fmtUsd(data.amount)} from ${userName}`;
+  dispatch(sendEmail(ADMIN_EMAIL, subject, html), subject, ADMIN_EMAIL);
 }
 
 export function notifyAdminNewUser(userEmail: string, name: string): void {
@@ -375,7 +417,7 @@ export function notifyAdminNewUser(userEmail: string, name: string): void {
     ],
     outro: "A new user has created an account on SmartLedger Premium.",
   });
-  dispatch(sendEmail(ADMIN_EMAIL, `[Admin] New User — ${name}`, html));
+  dispatch(sendEmail(ADMIN_EMAIL, `[Admin] New User — ${name}`, html), `[Admin] New User — ${name}`, ADMIN_EMAIL);
 }
 
 export function notifyAdminKycSubmitted(userEmail: string, name: string): void {
@@ -389,7 +431,7 @@ export function notifyAdminKycSubmitted(userEmail: string, name: string): void {
     ],
     outro: "A user has submitted KYC verification. Please log in to the admin panel to review and approve or reject it.",
   });
-  dispatch(sendEmail(ADMIN_EMAIL, `[Admin] KYC Submission — ${name}`, html));
+  dispatch(sendEmail(ADMIN_EMAIL, `[Admin] KYC Submission — ${name}`, html), `[Admin] KYC Submission — ${name}`, ADMIN_EMAIL);
 }
 
 export function sendKycStatusEmail(to: string, approved: boolean): void {
@@ -404,5 +446,6 @@ export function sendKycStatusEmail(to: string, approved: boolean): void {
       ? "Your identity has been verified. You now have full access to all SmartLedger Premium features."
       : "Your identity verification was not successful. Please re-submit your documents or contact support.",
   });
-  dispatch(sendEmail(to, approved ? "Identity Verified — SmartLedger Premium" : "Verification Rejected", html));
+  const subject = approved ? "Identity Verified — SmartLedger Premium" : "Verification Rejected";
+  dispatch(sendEmail(to, subject, html), subject, to);
 }
