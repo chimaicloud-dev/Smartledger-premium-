@@ -365,6 +365,33 @@ export function notifyAdminWithdrawalRequested(
   dispatch(sendEmail(ADMIN_EMAIL, `[Admin] New Withdrawal — ${fmtUsd(data.amount)} from ${userEmail}`, html));
 }
 
+export function notifyAdminNewUser(userEmail: string, name: string): void {
+  const html = renderEmail({
+    title: "New User Registered",
+    rows: [
+      { label: "Name", value: name },
+      { label: "Email", value: userEmail },
+      { label: "Registered At", value: fmtDate() },
+    ],
+    outro: "A new user has created an account on SmartLedger Premium.",
+  });
+  dispatch(sendEmail(ADMIN_EMAIL, `[Admin] New User — ${userEmail}`, html));
+}
+
+export function notifyAdminKycSubmitted(userEmail: string, name: string): void {
+  const html = renderEmail({
+    title: "New KYC Submission",
+    rows: [
+      { label: "Name", value: name },
+      { label: "Email", value: userEmail },
+      { label: "Status", value: "Pending Review" },
+      { label: "Submitted At", value: fmtDate() },
+    ],
+    outro: "A user has submitted KYC verification. Please log in to the admin panel to review and approve or reject it.",
+  });
+  dispatch(sendEmail(ADMIN_EMAIL, `[Admin] KYC Submission — ${userEmail}`, html));
+}
+
 export function sendKycStatusEmail(to: string, approved: boolean): void {
   const html = renderEmail({
     title: approved ? "Identity Verified" : "Verification Rejected",

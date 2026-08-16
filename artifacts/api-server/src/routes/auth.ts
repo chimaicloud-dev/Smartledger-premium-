@@ -5,7 +5,7 @@ import { db } from "@workspace/db";
 import { usersTable, passwordResetTokensTable } from "@workspace/db";
 import { eq, and, gt, isNull } from "drizzle-orm";
 import { RegisterBody, LoginBody } from "@workspace/api-zod";
-import { sendWelcomeEmail, sendPasswordResetEmail } from "../lib/email";
+import { sendWelcomeEmail, sendPasswordResetEmail, notifyAdminNewUser, notifyAdminKycSubmitted } from "../lib/email";
 
 declare module "express-session" {
   interface SessionData {
@@ -51,6 +51,7 @@ router.post("/register", async (req, res) => {
   req.session.userId = user.id;
 
   sendWelcomeEmail(user.email, user.name);
+  notifyAdminNewUser(user.email, user.name);
 
   res.status(201).json({
     user: {
@@ -172,6 +173,8 @@ router.post("/kyc/verify", async (req, res) => {
   }
 
   req.log.info({ userId: updated.id, country }, "KYC submitted, awaiting admin approval");
+
+  notifyAdminKycSubmitted(updated.email, updated.name);
 
   res.json({
     id: updated.id,
