@@ -106,7 +106,7 @@ router.post("/deposit", async (req, res) => {
 
     req.log.info({ userId: user.id, symbol: sym, coinAmount }, "deposit.pending");
 
-    sendDepositReceivedEmail(user.email, { usdAmount: usdValue, coin: assetInfo.name, amount: coinAmount, symbol: sym });
+    sendDepositReceivedEmail(user.email, user.name, { usdAmount: usdValue, coin: assetInfo.name, amount: coinAmount, symbol: sym });
     notifyAdminDepositReceived(user.name, { usdAmount: usdValue, coin: assetInfo.name, amount: coinAmount, symbol: sym });
 
     res.json({
@@ -308,7 +308,7 @@ router.post("/withdraw", async (req, res) => {
     })
     .returning();
 
-  sendWithdrawalRequestedEmail(user.email, { amount: usdValue, method: `${amount} ${sym} (${method})`, address });
+  sendWithdrawalRequestedEmail(user.email, user.name, { amount: usdValue, method: `${amount} ${sym} (${method})`, address });
   notifyAdminWithdrawalRequested(user.name, { amount: usdValue, method: `${amount} ${sym} (${method})`, address });
 
   res.json({

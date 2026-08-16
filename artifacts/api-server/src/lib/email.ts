@@ -227,10 +227,11 @@ export function sendWelcomeEmail(to: string, name: string): void {
 
 export function sendWithdrawalRequestedEmail(
   to: string,
+  name: string,
   data: { amount: number; method: string; address?: string | null }
 ): void {
   const rows: EmailRow[] = [
-    { label: "User", value: to },
+    { label: "User", value: name },
     { label: "Amount", value: fmtUsd(data.amount) },
   ];
   if (data.address) rows.push({ label: "Wallet / Account", value: data.address });
@@ -250,10 +251,11 @@ export function sendWithdrawalRequestedEmail(
 
 export function sendWithdrawalCompletedEmail(
   to: string,
+  name: string,
   data: { amount: number; method: string; address?: string | null }
 ): void {
   const rows: EmailRow[] = [
-    { label: "User", value: to },
+    { label: "User", value: name },
     { label: "Amount", value: fmtUsd(data.amount) },
   ];
   if (data.address) rows.push({ label: "Wallet / Account", value: data.address });
@@ -271,11 +273,11 @@ export function sendWithdrawalCompletedEmail(
   dispatch(sendEmail(to, subject, html), subject, to);
 }
 
-export function sendWithdrawalRejectedEmail(to: string, data: { amount: number; method: string }): void {
+export function sendWithdrawalRejectedEmail(to: string, name: string, data: { amount: number; method: string }): void {
   const html = renderEmail({
     title: "Withdrawal Rejected",
     rows: [
-      { label: "User", value: to },
+      { label: "User", value: name },
       { label: "Amount", value: fmtUsd(data.amount) },
       { label: "Method", value: data.method },
       { label: "Status", value: "Rejected" },
@@ -288,9 +290,10 @@ export function sendWithdrawalRejectedEmail(to: string, data: { amount: number; 
 
 export function sendDepositReceivedEmail(
   to: string,
+  name: string,
   data: { usdAmount: number; coin?: string | null; amount?: number | null; symbol?: string | null }
 ): void {
-  const rows: EmailRow[] = [{ label: "User", value: to }];
+  const rows: EmailRow[] = [{ label: "User", value: name }];
   if (data.coin && data.amount && data.symbol) {
     rows.push({ label: "Asset", value: `${data.coin} (${data.symbol})` });
     rows.push({ label: "Amount", value: `${data.amount} ${data.symbol}` });
@@ -311,9 +314,10 @@ export function sendDepositReceivedEmail(
 
 export function sendDepositApprovedEmail(
   to: string,
+  name: string,
   data: { usdAmount: number; coin?: string | null; amount?: number | null; symbol?: string | null }
 ): void {
-  const rows: EmailRow[] = [{ label: "User", value: to }];
+  const rows: EmailRow[] = [{ label: "User", value: name }];
   if (data.coin && data.amount && data.symbol) {
     rows.push({ label: "Asset", value: `${data.coin} (${data.symbol})` });
     rows.push({ label: "Amount", value: `${data.amount} ${data.symbol}` });
@@ -332,11 +336,11 @@ export function sendDepositApprovedEmail(
   dispatch(sendEmail(to, subject, html), subject, to);
 }
 
-export function sendDepositRejectedEmail(to: string, data: { usdAmount: number }): void {
+export function sendDepositRejectedEmail(to: string, name: string, data: { usdAmount: number }): void {
   const html = renderEmail({
     title: "Deposit Rejected",
     rows: [
-      { label: "User", value: to },
+      { label: "User", value: name },
       { label: "USD Value", value: fmtUsd(data.usdAmount) },
       { label: "Status", value: "Rejected" },
       { label: "Reviewed At", value: fmtDate() },

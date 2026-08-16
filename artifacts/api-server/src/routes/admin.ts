@@ -281,9 +281,9 @@ router.post("/transactions/:id/approve", async (req, res) => {
   const [txUser] = await db.select().from(usersTable).where(eq(usersTable.id, tx.userId)).limit(1);
   if (txUser) {
     if (tx.type === "deposit") {
-      sendDepositApprovedEmail(txUser.email, { usdAmount: tx.usdAmount, coin: tx.coin, amount: tx.amount, symbol: tx.symbol });
+      sendDepositApprovedEmail(txUser.email, txUser.name, { usdAmount: tx.usdAmount, coin: tx.coin, amount: tx.amount, symbol: tx.symbol });
     } else if (tx.type === "withdraw") {
-      sendWithdrawalCompletedEmail(txUser.email, { amount: tx.usdAmount, method: tx.coin ?? "USD", address: tx.symbol });
+      sendWithdrawalCompletedEmail(txUser.email, txUser.name, { amount: tx.usdAmount, method: tx.coin ?? "USD", address: tx.symbol });
     }
   }
   res.json(await fetchTxWithUser(id));
@@ -340,9 +340,9 @@ router.post("/transactions/:id/reject", async (req, res) => {
   const [txUser2] = await db.select().from(usersTable).where(eq(usersTable.id, tx.userId)).limit(1);
   if (txUser2) {
     if (tx.type === "deposit") {
-      sendDepositRejectedEmail(txUser2.email, { usdAmount: tx.usdAmount });
+      sendDepositRejectedEmail(txUser2.email, txUser2.name, { usdAmount: tx.usdAmount });
     } else if (tx.type === "withdraw") {
-      sendWithdrawalRejectedEmail(txUser2.email, { amount: tx.usdAmount, method: tx.coin ?? "USD" });
+      sendWithdrawalRejectedEmail(txUser2.email, txUser2.name, { amount: tx.usdAmount, method: tx.coin ?? "USD" });
     }
   }
   res.json(await fetchTxWithUser(id));
