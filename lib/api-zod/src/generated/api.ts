@@ -127,6 +127,46 @@ export const GetPortfolioResponse = zod.object({
 });
 
 /**
+ * @summary List the user's investment plans
+ */
+export const GetInvestmentsResponseItem = zod.object({
+  id: zod.number(),
+  planId: zod.string(),
+  planName: zod.string(),
+  amount: zod.number(),
+  dailyPct: zod.number(),
+  earned: zod.number(),
+  daysAccrued: zod.number(),
+  status: zod.enum(["active", "completed"]),
+  startedAt: zod.string(),
+  endsAt: zod.string(),
+  completedAt: zod.string().nullish(),
+});
+export const GetInvestmentsResponse = zod.array(GetInvestmentsResponseItem);
+
+/**
+ * @summary Invest in a plan (locks capital for 30 days)
+ */
+export const CreateInvestmentBody = zod.object({
+  planId: zod.string(),
+  amount: zod.number(),
+});
+
+export const CreateInvestmentResponse = zod.object({
+  id: zod.number(),
+  planId: zod.string(),
+  planName: zod.string(),
+  amount: zod.number(),
+  dailyPct: zod.number(),
+  earned: zod.number(),
+  daysAccrued: zod.number(),
+  status: zod.enum(["active", "completed"]),
+  startedAt: zod.string(),
+  endsAt: zod.string(),
+  completedAt: zod.string().nullish(),
+});
+
+/**
  * @summary Get user transactions
  */
 export const GetTransactionsResponseItem = zod.object({

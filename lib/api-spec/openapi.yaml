@@ -184,6 +184,38 @@ paths:
               schema:
                 $ref: "#/components/schemas/Portfolio"
 
+  /investments:
+    get:
+      operationId: getInvestments
+      tags: [investments]
+      summary: List the user's investment plans
+      responses:
+        "200":
+          description: List of investments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Investment"
+    post:
+      operationId: createInvestment
+      tags: [investments]
+      summary: Invest in a plan (locks capital for 30 days)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateInvestmentRequest"
+      responses:
+        "200":
+          description: Investment created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Investment"
+
   /transactions:
     get:
       operationId: getTransactions
@@ -801,6 +833,56 @@ components:
         - dateOfBirth
         - country
         - idNumber
+
+    Investment:
+      type: object
+      properties:
+        id:
+          type: integer
+        planId:
+          type: string
+        planName:
+          type: string
+        amount:
+          type: number
+        dailyPct:
+          type: number
+        earned:
+          type: number
+        daysAccrued:
+          type: integer
+        status:
+          type: string
+          enum: [active, completed]
+        startedAt:
+          type: string
+        endsAt:
+          type: string
+        completedAt:
+          type: string
+          nullable: true
+      required:
+        - id
+        - planId
+        - planName
+        - amount
+        - dailyPct
+        - earned
+        - daysAccrued
+        - status
+        - startedAt
+        - endsAt
+
+    CreateInvestmentRequest:
+      type: object
+      properties:
+        planId:
+          type: string
+        amount:
+          type: number
+      required:
+        - planId
+        - amount
 
     Portfolio:
       type: object

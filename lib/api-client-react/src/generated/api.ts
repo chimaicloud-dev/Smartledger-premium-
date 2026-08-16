@@ -26,11 +26,13 @@ import type {
   CoinPrice,
   ConvertRequest,
   ConvertResponse,
+  CreateInvestmentRequest,
   DepositRequest,
   ErrorResponse,
   GetAdminTransactionsParams,
   GetAdminUsersParams,
   HealthStatus,
+  Investment,
   KycSubmitRequest,
   LoginRequest,
   MessageResponse,
@@ -688,6 +690,167 @@ export function useGetPortfolio<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary List the user's investment plans
+ */
+export const getGetInvestmentsUrl = () => {
+  return `/api/investments`;
+};
+
+export const getInvestments = async (
+  options?: RequestInit,
+): Promise<Investment[]> => {
+  return customFetch<Investment[]>(getGetInvestmentsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetInvestmentsQueryKey = () => {
+  return [`/api/investments`] as const;
+};
+
+export const getGetInvestmentsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getInvestments>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getInvestments>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetInvestmentsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getInvestments>>> = ({
+    signal,
+  }) => getInvestments({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getInvestments>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetInvestmentsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getInvestments>>
+>;
+export type GetInvestmentsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List the user's investment plans
+ */
+
+export function useGetInvestments<
+  TData = Awaited<ReturnType<typeof getInvestments>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getInvestments>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetInvestmentsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Invest in a plan (locks capital for 30 days)
+ */
+export const getCreateInvestmentUrl = () => {
+  return `/api/investments`;
+};
+
+export const createInvestment = async (
+  createInvestmentRequest: CreateInvestmentRequest,
+  options?: RequestInit,
+): Promise<Investment> => {
+  return customFetch<Investment>(getCreateInvestmentUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createInvestmentRequest),
+  });
+};
+
+export const getCreateInvestmentMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createInvestment>>,
+    TError,
+    { data: BodyType<CreateInvestmentRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createInvestment>>,
+  TError,
+  { data: BodyType<CreateInvestmentRequest> },
+  TContext
+> => {
+  const mutationKey = ["createInvestment"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createInvestment>>,
+    { data: BodyType<CreateInvestmentRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createInvestment(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateInvestmentMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createInvestment>>
+>;
+export type CreateInvestmentMutationBody = BodyType<CreateInvestmentRequest>;
+export type CreateInvestmentMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Invest in a plan (locks capital for 30 days)
+ */
+export const useCreateInvestment = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createInvestment>>,
+    TError,
+    { data: BodyType<CreateInvestmentRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createInvestment>>,
+  TError,
+  { data: BodyType<CreateInvestmentRequest> },
+  TContext
+> => {
+  return useMutation(getCreateInvestmentMutationOptions(options));
+};
 
 /**
  * @summary Get user transactions

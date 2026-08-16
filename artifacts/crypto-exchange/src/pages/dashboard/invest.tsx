@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { DashboardLayout } from "@/components/layout";
 import { Card, Button, Input } from "@/components/ui/shared";
 import { useAuth } from "@/hooks/use-auth";
-import { useGetMarketPrices, useGetForexPrices, useConvertCrypto, useGetPortfolio, useDeposit } from "@workspace/api-client-react";
+import { useGetMarketPrices, useGetForexPrices, useConvertCrypto, useGetPortfolio, useCreateInvestment, useGetInvestments } from "@workspace/api-client-react";
+import type { Investment } from "@workspace/api-client-react";
 import { formatCurrency, formatPercent, cn, formatCrypto } from "@/lib/utils";
 import {
   Search, TrendingUp, TrendingDown, Zap, Shield, Rocket, Crown, Star,
@@ -423,12 +424,13 @@ function PlanModal({ plan, onClose, userBalance, onSuccess }: {
   const monthlyEarning = watchAmount * plan.dailyPct * 30;
   const totalReturn = watchAmount + monthlyEarning;
 
-  const depositMutation = useDeposit({
+  const investMutation = useCreateInvestment({
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
         queryClient.invalidateQueries({ queryKey: ["/api/portfolio"] });
         queryClient.invalidateQueries({ queryKey: ["/api/transactions"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/investments"] });
         setStep("success");
         onSuccess(plan, investAmount);
       },
@@ -441,8 +443,9 @@ function PlanModal({ plan, onClose, userBalance, onSuccess }: {
   };
 
   const onConfirm = () => {
-    depositMutation.mutate({ data: { amount: monthlyEarning, method: `${plan.name} Plan`, symbol: "USDT" } });
+    investMutation.mutate({ data: { planId: plan.id, amount: investAmount } });
   };
+  const depositMutation = investMutation; // keep existing pending/disabled wiring below
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -910,7 +913,14 @@ export default function InvestPage() {
   const [activeTab, setActiveTab] = useState<"plans" | "trade">(initialTab);
   void cryptoMarkets;
   const [openPlan, setOpenPlan] = useState<Plan | null>(null);
-  const [activePlans, setActivePlans] = useState<Record<string, number>>({});
+  const { data: investments, refetch: refetchInvestments } = useGetInvestments({
+    query: { queryKey: ["/api/investments"], refetchInterval: 60000 },
+  });
+  const activeInvestments = (investments ?? []).filter((i) => i.status === "active");
+  const activePlans: Record<string, number> = {};
+  for (const inv of activeInvestments) {
+    activePlans[inv.planId] = (activePlans[inv.planId] || 0) + inv.amount;
+  }
 
   const [search, setSearch] = useState("");
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
@@ -1035,8 +1045,8 @@ export default function InvestPage() {
           plan={openPlan}
           userBalance={usdtBalance}
           onClose={() => setOpenPlan(null)}
-          onSuccess={(plan, amount) => {
-            setActivePlans(prev => ({ ...prev, [plan.id]: amount }));
+          onSuccess={() => {
+            void refetchInvestments();
           }}
         />
       )}
@@ -1098,6 +1108,76 @@ export default function InvestPage() {
                 </p>
               </div>
             </div>
+
+            {/* My Investments */}
+            {(investments?.length ?? 0) > 0 && (
+              <div className="space-y-3">
+                <h2 className="text-xl font-bold text-foreground">My Investments</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {(investments ?? []).map((inv: Investment) => {
+                    const planMeta = INVESTMENT_PLANS.find((p) => p.id === inv.planId);
+                    const color = planMeta?.color ?? "text-primary";
+                    const started = new Date(inv.startedAt).getTime();
+                    const ends = new Date(inv.endsAt).getTime();
+                    const now = Date.now();
+                    const totalDays = Math.max(1, Math.round((ends - started) / 86400000));
+                    const daysLeft = Math.max(0, Math.ceil((ends - now) / 86400000));
+                    const progress = inv.status === "completed" ? 100 : Math.min(100, Math.max(0, ((now - started) / (ends - started)) * 100));
+                    return (
+                      <Card key={inv.id} className={cn("p-5 space-y-3 border", planMeta?.borderColor)}>
+                        <div className="flex items-center justify-between">
+                          <span className={cn("font-bold", color)}>{inv.planName} Plan</span>
+                          <span className={cn(
+                            "text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border",
+                            inv.status === "active"
+                              ? "text-green-400 border-green-500/30 bg-green-500/10"
+                              : "text-muted-foreground border-border bg-secondary"
+                          )}>
+                            {inv.status === "active" ? "Active" : "Completed"}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3 text-sm">
+                          <div>
+                            <p className="text-xs text-muted-foreground">Capital (locked {totalDays} days)</p>
+                            <p className="font-bold text-foreground mono-nums">{formatCurrency(inv.amount)}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Earned so far</p>
+                            <p className={cn("font-bold mono-nums", color)}>+{formatCurrency(inv.earned)}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Daily return</p>
+                            <p className="font-semibold text-foreground">{(inv.dailyPct * 100).toFixed(2)}% / 24h</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">{inv.status === "active" ? "Unlocks in" : "Completed"}</p>
+                            <p className="font-semibold text-foreground">
+                              {inv.status === "active"
+                                ? `${daysLeft} day${daysLeft === 1 ? "" : "s"}`
+                                : new Date(inv.completedAt ?? inv.endsAt).toLocaleDateString()}
+                            </p>
+                          </div>
+                        </div>
+                        <div>
+                          <div className="h-2 rounded-full bg-secondary overflow-hidden">
+                            <div className={cn("h-full rounded-full", planMeta?.bgGlow ?? "bg-primary")} style={{ width: `${progress}%` }} />
+                          </div>
+                          <div className="flex justify-between text-[11px] text-muted-foreground mt-1">
+                            <span>{inv.daysAccrued}/{totalDays} daily payouts credited</span>
+                            <span>Unlocks {new Date(inv.endsAt).toLocaleDateString()}</span>
+                          </div>
+                        </div>
+                        {inv.status === "active" && (
+                          <p className="text-[11px] text-muted-foreground">
+                            Profits are added to your USDT balance every 24 hours. Your capital is released automatically when the plan matures.
+                          </p>
+                        )}
+                      </Card>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* 4 Plans Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-5">
@@ -1199,7 +1279,7 @@ export default function InvestPage() {
             </div>
 
             <p className="text-center text-xs text-muted-foreground pb-2">
-              Returns are simulated for demonstration purposes. Past performance does not guarantee future results. Invest responsibly.
+              Daily returns are credited to your USDT balance every 24 hours. Capital is locked for 30 days and released automatically at maturity. Invest responsibly.
             </p>
           </div>
         )}

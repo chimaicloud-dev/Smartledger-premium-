@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { db, usersTable, holdingsTable, transactionsTable } from "@workspace/db";
 import { and, eq, sql } from "drizzle-orm";
 import { COIN_INFO as CURRENT_PRICES } from "../lib/coins";
+import { accrueInvestments } from "./investments";
 
 declare module "express-session" {
   interface SessionData {
@@ -22,6 +23,10 @@ router.get("/", async (req, res) => {
     res.status(401).json({ error: "User not found" });
     return;
   }
+
+  // Pay out any due daily investment earnings / release matured capital first
+  // so the balances below are always up to date.
+  await accrueInvestments(req.session.userId);
 
   const holdings = await db.select().from(holdingsTable).where(eq(holdingsTable.userId, req.session.userId));
 

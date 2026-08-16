@@ -161,6 +161,33 @@ export interface KycSubmitRequest {
   idNumber: string;
 }
 
+export type InvestmentStatus =
+  (typeof InvestmentStatus)[keyof typeof InvestmentStatus];
+
+export const InvestmentStatus = {
+  active: "active",
+  completed: "completed",
+} as const;
+
+export interface Investment {
+  id: number;
+  planId: string;
+  planName: string;
+  amount: number;
+  dailyPct: number;
+  earned: number;
+  daysAccrued: number;
+  status: InvestmentStatus;
+  startedAt: string;
+  endsAt: string;
+  completedAt?: string | null;
+}
+
+export interface CreateInvestmentRequest {
+  planId: string;
+  amount: number;
+}
+
 export interface Holding {
   coin: string;
   symbol: string;
