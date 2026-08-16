@@ -57,8 +57,8 @@ export function renderEmail(opts: {
           .map(
             (r, i) => `
           <tr>
-            <td style="padding:16px 20px;color:${MUTED};font-size:14px;width:38%;vertical-align:top;${i > 0 ? `border-top:1px solid ${ROW_BORDER};` : ""}">${esc(r.label)}</td>
-            <td style="padding:16px 20px;color:#ffffff;font-size:14px;font-weight:700;word-break:break-all;${i > 0 ? `border-top:1px solid ${ROW_BORDER};` : ""}">${esc(r.value)}</td>
+            <td class="sl-row-label" style="padding:14px 16px;color:${MUTED};font-size:13px;width:36%;vertical-align:top;${i > 0 ? `border-top:1px solid ${ROW_BORDER};` : ""}">${esc(r.label)}</td>
+            <td class="sl-row-value" style="padding:14px 16px;color:#ffffff;font-size:13px;font-weight:700;word-break:break-word;overflow-wrap:anywhere;${i > 0 ? `border-top:1px solid ${ROW_BORDER};` : ""}">${esc(r.value)}</td>
           </tr>`
           )
           .join("")}
@@ -81,7 +81,13 @@ export function renderEmail(opts: {
   :root { color-scheme: dark; supported-color-schemes: dark; }
   body, table, td { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
   @media only screen and (max-width: 620px) {
-    .sl-card-pad { padding-left: 20px !important; padding-right: 20px !important; }
+    .sl-card { width: 100% !important; border-radius: 14px !important; }
+    .sl-card-pad { padding-left: 16px !important; padding-right: 16px !important; }
+    .sl-title { font-size: 20px !important; }
+    .sl-logo { font-size: 22px !important; }
+    /* Stack label above value so long values never force sideways scrolling */
+    .sl-row-label { display: block !important; width: 100% !important; box-sizing: border-box !important; padding: 12px 14px 2px 14px !important; }
+    .sl-row-value { display: block !important; width: 100% !important; box-sizing: border-box !important; padding: 0 14px 12px 14px !important; border-top: none !important; font-size: 14px !important; }
   }
 </style>
 <title>${esc(title)}</title>
@@ -90,18 +96,18 @@ export function renderEmail(opts: {
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${BG}" style="background-color:${BG};padding:24px 0;">
     <tr>
       <td align="center" style="padding:24px 12px;">
-        <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" bgcolor="${CARD}" style="max-width:600px;width:100%;background-color:${CARD};border-radius:20px;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+        <table role="presentation" class="sl-card" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${CARD}" style="max-width:600px;width:100%;background-color:${CARD};border-radius:20px;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
           <!-- Header -->
           <tr>
             <td class="sl-card-pad" style="padding:32px 36px 24px 36px;border-bottom:1px solid ${ROW_BORDER};">
-              <span class="notranslate" translate="no" style="display:block;color:#ffffff;font-size:26px;font-weight:800;letter-spacing:-0.5px;">SmartLedger</span>
+              <span class="notranslate sl-logo" translate="no" style="display:block;color:#ffffff;font-size:26px;font-weight:800;letter-spacing:-0.5px;">SmartLedger</span>
               <span class="notranslate" translate="no" style="display:block;color:${GOLD};font-size:12px;font-weight:700;letter-spacing:5px;margin-top:2px;">PREMIUM</span>
             </td>
           </tr>
           <!-- Body -->
           <tr>
             <td class="sl-card-pad" style="padding:32px 36px 8px 36px;">
-              <h1 style="margin:0;color:#ffffff;font-size:26px;font-weight:800;">${esc(title)}</h1>
+              <h1 class="sl-title" style="margin:0;color:#ffffff;font-size:26px;font-weight:800;">${esc(title)}</h1>
               <div style="width:64px;height:4px;background-color:${GOLD};border-radius:2px;margin:14px 0 24px 0;"></div>
               ${intro ? `<p style="margin:0 0 24px 0;color:#c9ccd4;font-size:15px;line-height:1.6;">${intro}</p>` : ""}
               ${rowsHtml}
