@@ -324,10 +324,10 @@ export function sendPasswordResetEmail(to: string, resetUrl: string): void {
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "officialsmartledgerpremium@gmail.com";
 
 export function notifyAdminDepositReceived(
-  userEmail: string,
+  userName: string,
   data: { usdAmount: number; coin?: string | null; amount?: number | null; symbol?: string | null }
 ): void {
-  const rows: EmailRow[] = [{ label: "User", value: userEmail }];
+  const rows: EmailRow[] = [{ label: "User", value: userName }];
   if (data.coin && data.amount && data.symbol) {
     rows.push({ label: "Asset", value: `${data.coin} (${data.symbol})` });
     rows.push({ label: "Amount", value: `${data.amount} ${data.symbol}` });
@@ -342,14 +342,14 @@ export function notifyAdminDepositReceived(
     rows,
     outro: "A user has submitted a deposit. Please log in to the admin panel to review and approve or reject it.",
   });
-  dispatch(sendEmail(ADMIN_EMAIL, `[Admin] New Deposit — ${fmtUsd(data.usdAmount)} from ${userEmail}`, html));
+  dispatch(sendEmail(ADMIN_EMAIL, `[Admin] New Deposit — ${fmtUsd(data.usdAmount)} from ${userName}`, html));
 }
 
 export function notifyAdminWithdrawalRequested(
-  userEmail: string,
+  userName: string,
   data: { amount: number; method: string; address?: string | null }
 ): void {
-  const rows: EmailRow[] = [{ label: "User", value: userEmail }];
+  const rows: EmailRow[] = [{ label: "User", value: userName }];
   rows.push({ label: "Amount", value: fmtUsd(data.amount) });
   if (data.address) rows.push({ label: "Wallet / Account", value: data.address });
   rows.push(
@@ -362,7 +362,7 @@ export function notifyAdminWithdrawalRequested(
     rows,
     outro: "A user has requested a withdrawal. Please log in to the admin panel to review and approve or reject it.",
   });
-  dispatch(sendEmail(ADMIN_EMAIL, `[Admin] New Withdrawal — ${fmtUsd(data.amount)} from ${userEmail}`, html));
+  dispatch(sendEmail(ADMIN_EMAIL, `[Admin] New Withdrawal — ${fmtUsd(data.amount)} from ${userName}`, html));
 }
 
 export function notifyAdminNewUser(userEmail: string, name: string): void {
@@ -375,7 +375,7 @@ export function notifyAdminNewUser(userEmail: string, name: string): void {
     ],
     outro: "A new user has created an account on SmartLedger Premium.",
   });
-  dispatch(sendEmail(ADMIN_EMAIL, `[Admin] New User — ${userEmail}`, html));
+  dispatch(sendEmail(ADMIN_EMAIL, `[Admin] New User — ${name}`, html));
 }
 
 export function notifyAdminKycSubmitted(userEmail: string, name: string): void {
@@ -389,7 +389,7 @@ export function notifyAdminKycSubmitted(userEmail: string, name: string): void {
     ],
     outro: "A user has submitted KYC verification. Please log in to the admin panel to review and approve or reject it.",
   });
-  dispatch(sendEmail(ADMIN_EMAIL, `[Admin] KYC Submission — ${userEmail}`, html));
+  dispatch(sendEmail(ADMIN_EMAIL, `[Admin] KYC Submission — ${name}`, html));
 }
 
 export function sendKycStatusEmail(to: string, approved: boolean): void {
