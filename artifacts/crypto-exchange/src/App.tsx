@@ -11,7 +11,6 @@ import DepositPage from "@/pages/dashboard/deposit";
 import WithdrawPage from "@/pages/dashboard/withdraw";
 import TransactionsPage from "@/pages/dashboard/transactions";
 import SettingsPage from "@/pages/dashboard/settings";
-import WalletConnectPage from "@/pages/dashboard/wallet-connect";
 import LoanPage from "@/pages/dashboard/loan";
 import ConvertPage from "@/pages/dashboard/convert";
 import AdminPage from "@/pages/admin";
@@ -104,7 +103,6 @@ function Router() {
       <Route path="/dashboard/convert"><ProtectedRoute component={ConvertPage} /></Route>
       <Route path="/dashboard/transactions"><ProtectedRoute component={TransactionsPage} /></Route>
       <Route path="/dashboard/settings"><ProtectedRoute component={SettingsPage} /></Route>
-      <Route path="/dashboard/wallet-connect"><ProtectedRoute component={WalletConnectPage} /></Route>
       <Route path="/dashboard/loan"><ProtectedRoute component={LoanPage} /></Route>
 
       {/* Admin Panel */}

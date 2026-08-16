@@ -12,7 +12,6 @@ import {
   LogOut,
   Menu,
   X,
-  Link2,
   Shield,
   Landmark,
   Facebook,
@@ -419,7 +418,6 @@ const NAV_ITEMS = [
 ];
 
 const SECURITY_ITEMS = [
-  { href: "/dashboard/wallet-connect", icon: Link2, label: "Wallet Connect" },
   { href: "/dashboard/settings", icon: Settings, label: "Settings" },
 ];
 
@@ -495,7 +493,6 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
               </div>
               {SECURITY_ITEMS.map((item) => {
                 const isActive = location === item.href;
-                const isWallet = item.href === "/dashboard/wallet-connect";
                 return (
                   <Link key={item.href} href={item.href}>
                     <span className={cn(
@@ -506,11 +503,6 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                     )}>
                       <item.icon className={cn("w-5 h-5 transition-colors", isActive ? "text-primary" : "group-hover:text-primary")} />
                       <span className="flex-1">{item.label}</span>
-                      {isWallet && (
-                        <span className="text-[10px] font-bold bg-green-500/15 text-green-400 border border-green-500/25 px-1.5 py-0.5 rounded-full">
-                          NEW
-                        </span>
-                      )}
                     </span>
                   </Link>
                 );
