@@ -206,6 +206,9 @@ export default function DepositPage() {
   const [copiedTx, setCopiedTx] = useState(false);
   const [copiedDepAddr, setCopiedDepAddr] = useState(false);
   const [settingsAddrs, setSettingsAddrs] = useState<Record<string, string>>({});
+  const [payMode, setPayMode] = useState<"crypto" | "bank">("crypto");
+  const [bankAmount, setBankAmount] = useState("");
+  const [bankConfirmed, setBankConfirmed] = useState(false);
 
   useEffect(() => {
     fetch("/api/settings/public")
@@ -227,6 +230,28 @@ export default function DepositPage() {
     doge: "payment_doge_address",
   };
   const currentAddr = (ADDR_KEY[selected.id] && settingsAddrs[ADDR_KEY[selected.id]]) || selected.address;
+  const bankEnabled = settingsAddrs.payment_bank_enabled === "true";
+
+  const handleBankSubmit = () => {
+    const num = parseFloat(bankAmount);
+    if (!num || num <= 0) return;
+    const txId = "DP" + Date.now().toString(36).toUpperCase() + Math.random().toString(36).slice(2, 6).toUpperCase();
+    const now = new Date();
+    const timestamp = now.toLocaleString("en-US", { year: "numeric", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+    setSubmittedAmount(num);
+    setSubmittedCoin("Bank Transfer");
+    setSubmittedNetwork("Bank Transfer");
+    setSubmittedIcon("");
+    setSubmittedSymbol("USD");
+    setSubmittedAddress(settingsAddrs.payment_bank_account_number || "");
+    setSubmittedConfirmations(0);
+    setSubmittedTime("1-3 business days");
+    setSubmittedTxId(txId);
+    setSubmittedAt(timestamp);
+    mutate({ data: { amount: num, method: "bank", address: settingsAddrs.payment_bank_account_number || "", symbol: "USDT" } });
+    setBankAmount("");
+    setBankConfirmed(false);
+  };
 
   const { mutate, isPending } = useDeposit({
     mutation: {
@@ -447,6 +472,101 @@ export default function DepositPage() {
           </div>
         </div>
 
+        {/* Method switcher (bank shows only when admin enables it) */}
+        {bankEnabled && (
+          <div className="flex bg-secondary p-1 rounded-xl gap-1 w-full max-w-sm">
+            {([["crypto", "Crypto"], ["bank", "Bank Transfer"]] as const).map(([m, label]) => (
+              <button
+                key={m}
+                onClick={() => setPayMode(m)}
+                className={cn(
+                  "flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all",
+                  payMode === m ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Bank transfer panel */}
+        {bankEnabled && payMode === "bank" && (
+          <div className="max-w-xl space-y-4">
+            <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Bank Account Details</p>
+              {[
+                ["Bank Name", settingsAddrs.payment_bank_name],
+                ["Account Name", settingsAddrs.payment_bank_account_name],
+                ["Account Number", settingsAddrs.payment_bank_account_number],
+                ["Routing / Sort Code", settingsAddrs.payment_bank_routing],
+                ["SWIFT / BIC", settingsAddrs.payment_bank_swift],
+              ].map(([label, value]) => (
+                <div key={label} className="flex items-center justify-between gap-4 border-b border-border/60 last:border-0 pb-2.5 last:pb-0">
+                  <span className="text-sm text-muted-foreground">{label}</span>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-sm font-medium text-foreground font-mono truncate">{value || "—"}</span>
+                    {value && (
+                      <button onClick={() => navigator.clipboard.writeText(value).catch(() => {})} className="shrink-0 text-muted-foreground hover:text-foreground transition-colors">
+                        <Copy className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex items-start gap-2.5 bg-blue-500/5 border border-blue-500/20 rounded-xl px-4 py-3.5 text-xs text-muted-foreground">
+              <Info className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+              Send the exact amount from your bank to the account above, then confirm below. Bank deposits are credited manually after the transfer clears (1-3 business days).
+            </div>
+
+            <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Amount Sent (USD)</label>
+                <input
+                  type="number"
+                  value={bankAmount}
+                  onChange={e => setBankAmount(e.target.value)}
+                  placeholder="0.00"
+                  step="any"
+                  min="0"
+                  className="w-full bg-background border border-border rounded-xl px-4 py-3.5 text-base font-semibold text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 transition-all"
+                />
+              </div>
+
+              <label className="flex items-start gap-2.5 cursor-pointer group">
+                <div
+                  onClick={() => setBankConfirmed(v => !v)}
+                  className={cn(
+                    "w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 transition-all",
+                    bankConfirmed ? "bg-primary border-primary" : "border-border group-hover:border-primary/50"
+                  )}
+                >
+                  {bankConfirmed && <CheckCircle2 className="w-3 h-3 text-primary-foreground" />}
+                </div>
+                <span className="text-xs text-muted-foreground leading-relaxed">
+                  I confirm I have sent the above amount via bank transfer to the account shown.
+                </span>
+              </label>
+
+              <button
+                onClick={handleBankSubmit}
+                disabled={isPending || !bankAmount || !bankConfirmed || parseFloat(bankAmount) <= 0}
+                className={cn(
+                  "w-full py-3.5 rounded-xl text-sm font-bold transition-all",
+                  isPending || !bankAmount || !bankConfirmed || parseFloat(bankAmount) <= 0
+                    ? "bg-secondary text-muted-foreground cursor-not-allowed"
+                    : "bg-primary text-primary-foreground hover:bg-primary/90"
+                )}
+              >
+                {isPending ? "Confirming..." : "Confirm Bank Deposit"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {(!bankEnabled || payMode === "crypto") && (
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
 
           {/* Left: coin list */}
@@ -658,6 +778,7 @@ export default function DepositPage() {
             </div>
           </div>
         </div>
+        )}
       </div>
     </DashboardLayout>
   );

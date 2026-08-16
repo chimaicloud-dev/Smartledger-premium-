@@ -711,7 +711,7 @@ function SettingsTab() {
     }
   };
 
-  const PAYMENT_KEYS = ["payment_btc_address","payment_eth_address","payment_usdt_trc20_address","payment_usdt_erc20_address","payment_bnb_address","payment_sol_address","payment_xrp_address","payment_ltc_address","payment_trx_address","payment_doge_address","payment_bank_name","payment_bank_account_name","payment_bank_account_number","payment_bank_routing","payment_bank_swift"];
+  const PAYMENT_KEYS = ["payment_btc_address","payment_eth_address","payment_usdt_trc20_address","payment_usdt_erc20_address","payment_bnb_address","payment_sol_address","payment_xrp_address","payment_ltc_address","payment_trx_address","payment_doge_address","payment_bank_enabled","payment_bank_name","payment_bank_account_name","payment_bank_account_number","payment_bank_routing","payment_bank_swift"];
   const HOME_KEYS = ["home_hero_title","home_hero_subtitle","home_badge_text","home_feature1_title","home_feature1_desc","home_feature2_title","home_feature2_desc"];
   const EMAIL_KEYS = ["email_smtp_host","email_smtp_port","email_smtp_user","email_smtp_pass","email_from_name","email_from_address","email_support_address"];
 
@@ -769,6 +769,26 @@ function SettingsTab() {
               <p className="text-xs text-muted-foreground mt-0.5">Shown to users who choose fiat / bank transfer deposits.</p>
             </div>
             <div className="p-5 space-y-4">
+              <div className="flex items-center justify-between gap-4 rounded-xl bg-secondary/50 border border-border px-4 py-3">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Bank transfer payments</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">When off, users won't see the bank transfer option on the Deposit page.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => upd("payment_bank_enabled", s("payment_bank_enabled") === "true" ? "false" : "true")}
+                  className={cn(
+                    "relative w-12 h-6 rounded-full transition-colors shrink-0",
+                    s("payment_bank_enabled") === "true" ? "bg-primary" : "bg-border"
+                  )}
+                  aria-pressed={s("payment_bank_enabled") === "true"}
+                >
+                  <span className={cn(
+                    "absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform",
+                    s("payment_bank_enabled") === "true" && "translate-x-6"
+                  )} />
+                </button>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <SettingsField label="Bank Name" value={s("payment_bank_name")} onChange={(v) => upd("payment_bank_name", v)} placeholder="First National Bank" />
                 <SettingsField label="Account Name" value={s("payment_bank_account_name")} onChange={(v) => upd("payment_bank_account_name", v)} placeholder="Smartledger Premium LLC" />
