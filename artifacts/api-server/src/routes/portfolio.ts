@@ -1,7 +1,8 @@
 import { Router, type IRouter } from "express";
 import { db, usersTable, holdingsTable, transactionsTable } from "@workspace/db";
 import { and, eq, sql } from "drizzle-orm";
-import { COIN_INFO as CURRENT_PRICES } from "../lib/coins";
+import { COIN_INFO } from "../lib/coins";
+import { getPriceMap } from "./market";
 import { accrueInvestments } from "./investments";
 
 declare module "express-session" {
@@ -29,6 +30,7 @@ router.get("/", async (req, res) => {
   await accrueInvestments(req.session.userId);
 
   const holdings = await db.select().from(holdingsTable).where(eq(holdingsTable.userId, req.session.userId));
+  const priceMap = await getPriceMap(req);
 
   // Sum all pending deposit USD amounts for this user
   const pendingResult = await db
@@ -46,8 +48,7 @@ router.get("/", async (req, res) => {
   const holdingsWithValue = holdings
     .filter((h) => h.amount > 0)
     .map((h) => {
-      const market = CURRENT_PRICES[h.symbol] || { name: h.coin, price: h.avgBuyPrice };
-      const currentPrice = market.price;
+      const currentPrice = priceMap[h.symbol] ?? COIN_INFO[h.symbol]?.price ?? h.avgBuyPrice;
       const currentValue = h.amount * currentPrice;
       const costBasis = h.amount * h.avgBuyPrice;
       const pnl = currentValue - costBasis;

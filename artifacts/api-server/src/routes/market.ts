@@ -85,34 +85,49 @@ async function fetchLivePrices(req: Request): Promise<PriceRow[]> {
   });
 }
 
-router.get("/prices", async (req, res) => {
+function fallbackRows(): PriceRow[] {
+  return COINS.map((c) => ({
+    symbol: c.symbol,
+    name: c.name,
+    price: c.fallback,
+    change24h: 0,
+    changePercent24h: 0,
+    volume24h: 0,
+    marketCap: 0,
+    icon: c.icon,
+  }));
+}
+
+/**
+ * Returns the current price rows, using the shared 60s cache. This is the
+ * single source of truth for prices across the app — the portfolio, admin,
+ * and market pages all read from here so a coin's price is identical
+ * everywhere (previously the portfolio used stale hardcoded prices, which
+ * made rates jump when an amount was entered on the Convert page).
+ */
+export async function getPriceRows(req: Request): Promise<PriceRow[]> {
   const now = Date.now();
-  if (cache && now - cache.ts < CACHE_MS) {
-    res.json(cache.data);
-    return;
-  }
+  if (cache && now - cache.ts < CACHE_MS) return cache.data;
   try {
     const data = await fetchLivePrices(req);
     cache = { ts: now, data };
-    res.json(data);
+    return data;
   } catch (err) {
     req.log.error({ err }, "failed to fetch live prices");
-    if (cache) {
-      res.json(cache.data);
-      return;
-    }
-    const fallback: PriceRow[] = COINS.map((c) => ({
-      symbol: c.symbol,
-      name: c.name,
-      price: c.fallback,
-      change24h: 0,
-      changePercent24h: 0,
-      volume24h: 0,
-      marketCap: 0,
-      icon: c.icon,
-    }));
-    res.json(fallback);
+    return cache?.data ?? fallbackRows();
   }
+}
+
+/** Live symbol -> USD price map, backed by the same cache as getPriceRows. */
+export async function getPriceMap(req: Request): Promise<Record<string, number>> {
+  const rows = await getPriceRows(req);
+  const map: Record<string, number> = { USDT: 1, USDC: 1 };
+  for (const r of rows) map[r.symbol] = r.price;
+  return map;
+}
+
+router.get("/prices", async (req, res) => {
+  res.json(await getPriceRows(req));
 });
 
 router.get("/forex", async (req, res) => {
