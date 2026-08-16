@@ -3,6 +3,11 @@ import { db, usersTable, holdingsTable, investmentsTable, transactionsTable, sit
 import { and, eq, sql, desc } from "drizzle-orm";
 import { z } from "zod/v4";
 import { DEFAULT_SETTINGS } from "./settings";
+import { getPriceMap } from "./market";
+import { debitUsdAcrossHoldings } from "../lib/balance";
+
+// Sentinel to roll back the investment transaction on insufficient funds.
+class InsufficientBalanceError extends Error {}
 
 declare module "express-session" {
   interface SessionData {
@@ -211,22 +216,16 @@ router.post("/investments", async (req, res) => {
     return;
   }
 
-  // One transaction: debit the USDT balance (conditional, so a concurrent
+  // One transaction: debit the invested USD across ALL holdings (USDT first,
+  // then other coins at live prices — conditional updates, so a concurrent
   // request can't overdraw) and create the locked investment together.
+  const priceMap = await getPriceMap(req);
   const now = new Date();
   const inv = await db.transaction(async (tx) => {
-    const debited = await tx
-      .update(holdingsTable)
-      .set({ amount: sql`${holdingsTable.amount} - ${amount}`, updatedAt: new Date() })
-      .where(
-        and(
-          eq(holdingsTable.userId, user.id),
-          eq(holdingsTable.symbol, "USDT"),
-          sql`${holdingsTable.amount} >= ${amount}`
-        )
-      )
-      .returning({ id: holdingsTable.id });
-    if (debited.length === 0) return null;
+    const legs = await debitUsdAcrossHoldings(tx, user.id, amount, priceMap);
+    if (!legs) {
+      throw new InsufficientBalanceError();
+    }
 
     const [created] = await tx
       .insert(investmentsTable)
@@ -243,10 +242,13 @@ router.post("/investments", async (req, res) => {
       })
       .returning();
     return created;
+  }).catch((err) => {
+    if (err instanceof InsufficientBalanceError) return null;
+    throw err;
   });
 
   if (!inv) {
-    res.status(400).json({ error: "Insufficient USDT balance" });
+    res.status(400).json({ error: "Insufficient balance — your total account value doesn't cover this amount" });
     return;
   }
 

@@ -1020,8 +1020,10 @@ export default function InvestPage() {
 
   const selectedCoin = markets?.find(c => c.symbol === selectedSymbol);
   const holding = portfolio?.holdings.find(h => h.symbol === selectedSymbol);
-  const usdtBalance = portfolio?.holdings.find(h => h.symbol === "USDT")?.amount || 0;
-  const maxBuy = usdtBalance;
+  // Spendable balance = total account value across ALL coins (the backend
+  // debits USDT first, then other coins at live prices).
+  const totalBalance = portfolio?.totalValue || 0;
+  const maxBuy = totalBalance;
 
   const lotsNum = Math.max(0.01, parseFloat(lots) || 0.01);
 
@@ -1094,7 +1096,7 @@ export default function InvestPage() {
       {openPlan && (
         <PlanModal
           plan={openPlan}
-          userBalance={usdtBalance}
+          userBalance={totalBalance}
           onClose={() => setOpenPlan(null)}
           onSuccess={() => {
             void refetchInvestments();
@@ -1136,7 +1138,7 @@ export default function InvestPage() {
             </button>
           </div>
           <span className="text-sm text-muted-foreground">
-            Balance: <span className="text-foreground font-semibold">{formatCurrency(usdtBalance)} <span className="text-muted-foreground font-normal">USDT</span></span>
+            Balance: <span className="text-foreground font-semibold">{formatCurrency(totalBalance)}</span>
           </span>
         </div>
 

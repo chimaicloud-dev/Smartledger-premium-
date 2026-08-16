@@ -5,6 +5,10 @@ import { DepositBody, WithdrawBody, ConvertCryptoBody } from "@workspace/api-zod
 import { fetchForexPrices, getForexAssetMeta } from "../lib/forex";
 import { COIN_INFO } from "../lib/coins";
 import { getPriceMap } from "./market";
+import { debitUsdAcrossHoldings } from "../lib/balance";
+
+// Sentinel to roll back a multi-coin debit transaction on insufficient funds.
+class InsufficientBalanceError extends Error {}
 import { methodToSymbol } from "../lib/withdraw-methods";
 import { sendWithdrawalRequestedEmail, sendDepositReceivedEmail, notifyAdminDepositReceived, notifyAdminWithdrawalRequested } from "../lib/email";
 
@@ -170,17 +174,6 @@ router.post("/convert", async (req, res) => {
     return;
   }
 
-  const [fromHolding] = await db
-    .select()
-    .from(holdingsTable)
-    .where(and(eq(holdingsTable.userId, req.session.userId), eq(holdingsTable.symbol, fromSym)))
-    .limit(1);
-
-  if (!fromHolding || fromHolding.amount < fromAmount) {
-    res.status(400).json({ error: `Insufficient ${fromSym} balance` });
-    return;
-  }
-
   // Apply tiny conversion spread (0.1%) like Binance Convert
   const fromPrice = fromInfo.price;
   const toPrice = toInfo.price;
@@ -188,61 +181,99 @@ router.post("/convert", async (req, res) => {
   const toAmount = (usdValue * 0.999) / toPrice;
   const rate = toAmount / fromAmount;
 
-  // Deduct from-coin atomically — the WHERE guard prevents concurrent requests
-  // from double-spending the same balance.
-  const [debited] = await db
-    .update(holdingsTable)
-    .set({ amount: sql`${holdingsTable.amount} - ${fromAmount}`, updatedAt: new Date() })
-    .where(and(eq(holdingsTable.id, fromHolding.id), sql`${holdingsTable.amount} >= ${fromAmount}`))
-    .returning();
-  if (!debited) {
-    res.status(400).json({ error: `Insufficient ${fromSym} balance` });
+  // ONE transaction for the whole conversion — debit, credit, and ledger row
+  // commit together, so a crash mid-way can never destroy funds and a
+  // concurrent spend can't race the credit.
+  const userId = req.session.userId;
+  const priceMap = fromSym === "USDT" ? await getPriceMap(req) : null;
+  const ok = await db
+    .transaction(async (tx) => {
+      if (fromSym === "USDT") {
+        // Spending USDT (buys / forex orders): draw the USD value from the
+        // user's WHOLE account — USDT first, then other coins at live prices —
+        // so users aren't limited to their USDT balance only.
+        const legs = await debitUsdAcrossHoldings(tx, userId, usdValue, priceMap!);
+        if (!legs) throw new InsufficientBalanceError();
+      } else {
+        // Deduct from-coin atomically — the WHERE guard prevents concurrent
+        // requests from double-spending the same balance.
+        const debited = await tx
+          .update(holdingsTable)
+          .set({ amount: sql`${holdingsTable.amount} - ${fromAmount}`, updatedAt: new Date() })
+          .where(
+            and(
+              eq(holdingsTable.userId, userId),
+              eq(holdingsTable.symbol, fromSym),
+              sql`${holdingsTable.amount} >= ${fromAmount}`
+            )
+          )
+          .returning({ id: holdingsTable.id });
+        if (debited.length === 0) throw new InsufficientBalanceError();
+        await tx
+          .delete(holdingsTable)
+          .where(and(eq(holdingsTable.id, debited[0].id), sql`${holdingsTable.amount} <= 0.0000001`));
+      }
+
+      // Credit to-coin. Atomic increment; if no row was updated (row missing
+      // or deleted by a concurrent spend), insert a fresh one — all inside
+      // this transaction, so the credit can never be lost.
+      const [toHolding] = await tx
+        .select()
+        .from(holdingsTable)
+        .where(and(eq(holdingsTable.userId, userId), eq(holdingsTable.symbol, toSym)))
+        .limit(1);
+
+      let credited = false;
+      if (toHolding) {
+        const newAmount = toHolding.amount + toAmount;
+        const newAvg = (toHolding.avgBuyPrice * toHolding.amount + toPrice * toAmount) / newAmount;
+        const updated = await tx
+          .update(holdingsTable)
+          .set({
+            amount: sql`${holdingsTable.amount} + ${toAmount}`,
+            avgBuyPrice: newAvg,
+            updatedAt: new Date(),
+          })
+          .where(eq(holdingsTable.id, toHolding.id))
+          .returning({ id: holdingsTable.id });
+        credited = updated.length > 0;
+      }
+      if (!credited) {
+        await tx.insert(holdingsTable).values({
+          userId,
+          coin: toInfo.name,
+          symbol: toSym,
+          amount: toAmount,
+          avgBuyPrice: toPrice,
+        });
+      }
+
+      await tx.insert(transactionsTable).values({
+        userId,
+        type: "convert",
+        coin: `${fromSym} → ${toSym}`,
+        symbol: toSym,
+        amount: toAmount,
+        usdAmount: usdValue,
+        price: toPrice,
+        status: "completed",
+      });
+      return true;
+    })
+    .catch((err: unknown) => {
+      if (err instanceof InsufficientBalanceError) return false;
+      throw err;
+    });
+
+  if (!ok) {
+    res.status(400).json({
+      error:
+        fromSym === "USDT"
+          ? "Insufficient balance — your total account value doesn't cover this amount"
+          : `Insufficient ${fromSym} balance`,
+    });
     return;
   }
-  if (debited.amount <= 0.0000001) {
-    await db
-      .delete(holdingsTable)
-      .where(and(eq(holdingsTable.id, fromHolding.id), sql`${holdingsTable.amount} <= 0.0000001`));
-  }
-
-  // Credit to-coin
-  const [toHolding] = await db
-    .select()
-    .from(holdingsTable)
-    .where(and(eq(holdingsTable.userId, req.session.userId), eq(holdingsTable.symbol, toSym)))
-    .limit(1);
-
-  if (toHolding) {
-    const newAmount = toHolding.amount + toAmount;
-    const newAvg = (toHolding.avgBuyPrice * toHolding.amount + toPrice * toAmount) / newAmount;
-    await db
-      .update(holdingsTable)
-      .set({
-        amount: sql`${holdingsTable.amount} + ${toAmount}`,
-        avgBuyPrice: newAvg,
-        updatedAt: new Date(),
-      })
-      .where(eq(holdingsTable.id, toHolding.id));
-  } else {
-    await db.insert(holdingsTable).values({
-      userId: req.session.userId,
-      coin: toInfo.name,
-      symbol: toSym,
-      amount: toAmount,
-      avgBuyPrice: toPrice,
-    });
-  }
-
-  await db.insert(transactionsTable).values({
-    userId: req.session.userId,
-    type: "convert",
-    coin: `${fromSym} → ${toSym}`,
-    symbol: toSym,
-    amount: toAmount,
-    usdAmount: usdValue,
-    price: toPrice,
-    status: "completed",
-  });
 
   req.log.info({ fromSym, toSym, fromAmount, toAmount, usdValue }, "convert.completed");
 
