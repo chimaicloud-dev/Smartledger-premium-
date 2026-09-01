@@ -50,15 +50,22 @@ export function renderEmail(opts: {
   outro?: string;
 }): string {
   const { title, intro, rows, outro } = opts;
+  // Mail apps already show the message's Date header in the recipient phone's
+  // own timezone. Omitting duplicated server-rendered timestamps avoids showing
+  // a misleading UK/UTC time and keeps the mobile email shorter.
+  const visibleRows = rows?.filter((row) => ![
+    "Registered At", "Submitted At", "Processed At", "Reviewed At",
+    "Approved At", "Requested At",
+  ].includes(row.label));
 
-  const rowsHtml = rows && rows.length
+  const rowsHtml = visibleRows && visibleRows.length
     ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid ${ROW_BORDER};border-radius:14px;border-collapse:separate;overflow:hidden;">
-        ${rows
+        ${visibleRows
           .map(
             (r, i) => `
           <tr>
-            <td class="sl-row-label" style="padding:14px 16px;color:${MUTED};font-size:13px;width:36%;vertical-align:top;${i > 0 ? `border-top:1px solid ${ROW_BORDER};` : ""}">${esc(r.label)}</td>
-            <td class="sl-row-value" style="padding:14px 16px;color:#ffffff;font-size:13px;font-weight:700;word-break:break-word;overflow-wrap:anywhere;${i > 0 ? `border-top:1px solid ${ROW_BORDER};` : ""}">${esc(r.value)}</td>
+            <td class="sl-row-label" style="padding:10px 12px;color:${MUTED};font-size:12px;width:34%;vertical-align:top;${i > 0 ? `border-top:1px solid ${ROW_BORDER};` : ""}">${esc(r.label)}</td>
+            <td class="sl-row-value" style="padding:10px 12px;color:#ffffff;font-size:12px;font-weight:700;word-break:break-word;overflow-wrap:anywhere;${i > 0 ? `border-top:1px solid ${ROW_BORDER};` : ""}">${esc(r.value)}</td>
           </tr>`
           )
           .join("")}
@@ -81,43 +88,42 @@ export function renderEmail(opts: {
   :root { color-scheme: dark; supported-color-schemes: dark; }
   body, table, td { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
   @media only screen and (max-width: 620px) {
-    .sl-card { width: 100% !important; border-radius: 14px !important; }
-    .sl-card-pad { padding-left: 16px !important; padding-right: 16px !important; }
-    .sl-title { font-size: 20px !important; }
-    .sl-logo { font-size: 22px !important; }
-    /* Stack label above value so long values never force sideways scrolling */
-    .sl-row-label { display: block !important; width: 100% !important; box-sizing: border-box !important; padding: 12px 14px 2px 14px !important; }
-    .sl-row-value { display: block !important; width: 100% !important; box-sizing: border-box !important; padding: 0 14px 12px 14px !important; border-top: none !important; font-size: 14px !important; }
+    .sl-card { width: 100% !important; border-radius: 12px !important; }
+    .sl-card-pad { padding-left: 14px !important; padding-right: 14px !important; }
+    .sl-title { font-size: 18px !important; }
+    .sl-logo { font-size: 20px !important; }
+    .sl-row-label { padding: 9px 8px !important; font-size: 11px !important; }
+    .sl-row-value { padding: 9px 8px !important; font-size: 11px !important; }
   }
 </style>
 <title>${esc(title)}</title>
 </head>
 <body bgcolor="${BG}" style="margin:0;padding:0;background-color:${BG};">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${BG}" style="background-color:${BG};padding:24px 0;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${BG}" style="background-color:${BG};padding:8px 0;">
     <tr>
-      <td align="center" style="padding:24px 12px;">
-        <table role="presentation" class="sl-card" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${CARD}" style="max-width:600px;width:100%;background-color:${CARD};border-radius:20px;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+      <td align="center" style="padding:8px;">
+        <table role="presentation" class="sl-card" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${CARD}" style="max-width:520px;width:100%;background-color:${CARD};border-radius:16px;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
           <!-- Header -->
           <tr>
-            <td class="sl-card-pad" style="padding:32px 36px 24px 36px;border-bottom:1px solid ${ROW_BORDER};">
-              <span class="notranslate sl-logo" translate="no" style="display:block;color:#ffffff;font-size:26px;font-weight:800;letter-spacing:-0.5px;">SmartLedger</span>
-              <span class="notranslate" translate="no" style="display:block;color:${GOLD};font-size:12px;font-weight:700;letter-spacing:5px;margin-top:2px;">PREMIUM</span>
+            <td class="sl-card-pad" style="padding:18px 24px 14px 24px;border-bottom:1px solid ${ROW_BORDER};">
+              <span class="notranslate sl-logo" translate="no" style="display:block;color:#ffffff;font-size:22px;font-weight:800;letter-spacing:-0.5px;">SmartLedger</span>
+              <span class="notranslate" translate="no" style="display:block;color:${GOLD};font-size:10px;font-weight:700;letter-spacing:4px;margin-top:1px;">PREMIUM</span>
             </td>
           </tr>
           <!-- Body -->
           <tr>
-            <td class="sl-card-pad" style="padding:32px 36px 8px 36px;">
-              <h1 class="sl-title" style="margin:0;color:#ffffff;font-size:26px;font-weight:800;">${esc(title)}</h1>
-              <div style="width:64px;height:4px;background-color:${GOLD};border-radius:2px;margin:14px 0 24px 0;"></div>
-              ${intro ? `<p style="margin:0 0 24px 0;color:#c9ccd4;font-size:15px;line-height:1.6;">${intro}</p>` : ""}
+            <td class="sl-card-pad" style="padding:18px 24px 4px 24px;">
+              <h1 class="sl-title" style="margin:0;color:#ffffff;font-size:21px;font-weight:800;">${esc(title)}</h1>
+              <div style="width:48px;height:3px;background-color:${GOLD};border-radius:2px;margin:9px 0 14px 0;"></div>
+              ${intro ? `<p style="margin:0 0 14px 0;color:#c9ccd4;font-size:13px;line-height:1.45;">${intro}</p>` : ""}
               ${rowsHtml}
-              ${outro ? `<p style="margin:24px 0 0 0;color:#c9ccd4;font-size:15px;line-height:1.6;">${outro}</p>` : ""}
+              ${outro ? `<p style="margin:14px 0 0 0;color:#c9ccd4;font-size:12px;line-height:1.45;">${outro}</p>` : ""}
             </td>
           </tr>
           <!-- Footer -->
           <tr>
-            <td class="sl-card-pad" style="padding:28px 36px 32px 36px;">
-              <p style="margin:0;color:${MUTED};font-size:13px;text-align:center;line-height:1.7;">
+            <td class="sl-card-pad" style="padding:14px 24px 18px 24px;">
+              <p style="margin:0;color:${MUTED};font-size:10px;text-align:center;line-height:1.45;">
                 This is an automated notification from <span class="notranslate" translate="no">SmartLedger Premium</span>.<br>
                 &copy; ${new Date().getFullYear()} <span class="notranslate" translate="no">Smartledger-premium</span> &middot; London, United Kingdom
               </p>
