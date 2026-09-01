@@ -296,7 +296,12 @@ router.post("/transactions/:id/approve", async (req, res) => {
     if (tx.type === "deposit") {
       sendDepositApprovedEmail(txUser.email, txUser.name, { usdAmount: tx.usdAmount, coin: tx.coin, amount: tx.amount, symbol: tx.symbol });
     } else if (tx.type === "withdraw") {
-      sendWithdrawalCompletedEmail(txUser.email, txUser.name, { amount: tx.usdAmount, method: tx.coin ?? "USD", address: tx.symbol });
+      sendWithdrawalCompletedEmail(txUser.email, txUser.name, {
+        amount: tx.usdAmount,
+        method: tx.coin ?? "USD",
+        address: tx.symbol,
+        timezone: txUser.timezone,
+      });
     }
   }
   res.json(await fetchTxWithUser(id));
@@ -355,7 +360,11 @@ router.post("/transactions/:id/reject", async (req, res) => {
     if (tx.type === "deposit") {
       sendDepositRejectedEmail(txUser2.email, txUser2.name, { usdAmount: tx.usdAmount });
     } else if (tx.type === "withdraw") {
-      sendWithdrawalRejectedEmail(txUser2.email, txUser2.name, { amount: tx.usdAmount, method: tx.coin ?? "USD" });
+      sendWithdrawalRejectedEmail(txUser2.email, txUser2.name, {
+        amount: tx.usdAmount,
+        method: tx.coin ?? "USD",
+        timezone: txUser2.timezone,
+      });
     }
   }
   res.json(await fetchTxWithUser(id));

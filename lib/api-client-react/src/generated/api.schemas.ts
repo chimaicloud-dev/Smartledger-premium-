@@ -291,6 +291,8 @@ export interface WithdrawRequest {
    * @maxLength 100
    */
   address: string;
+  /** IANA timezone reported by the user's device, such as Africa/Lagos. */
+  timezone?: string;
 }
 
 export interface WithdrawalAddress {

@@ -50,17 +50,9 @@ export function renderEmail(opts: {
   outro?: string;
 }): string {
   const { title, intro, rows, outro } = opts;
-  // Mail apps already show the message's Date header in the recipient phone's
-  // own timezone. Omitting duplicated server-rendered timestamps avoids showing
-  // a misleading UK/UTC time and keeps the mobile email shorter.
-  const visibleRows = rows?.filter((row) => ![
-    "Registered At", "Submitted At", "Processed At", "Reviewed At",
-    "Approved At", "Requested At",
-  ].includes(row.label));
-
-  const rowsHtml = visibleRows && visibleRows.length
+  const rowsHtml = rows && rows.length
     ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid ${ROW_BORDER};border-radius:14px;border-collapse:separate;overflow:hidden;">
-        ${visibleRows
+        ${rows
           .map(
             (r, i) => `
           <tr>
@@ -88,7 +80,8 @@ export function renderEmail(opts: {
   :root { color-scheme: dark; supported-color-schemes: dark; }
   body, table, td { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
   @media only screen and (max-width: 620px) {
-    .sl-card { width: 100% !important; border-radius: 12px !important; }
+    .sl-outer-pad { padding-left: 0 !important; padding-right: 0 !important; }
+    .sl-card { width: 100% !important; max-width: 100% !important; border-radius: 0 !important; }
     .sl-card-pad { padding-left: 14px !important; padding-right: 14px !important; }
     .sl-title { font-size: 18px !important; }
     .sl-logo { font-size: 20px !important; }
@@ -101,8 +94,8 @@ export function renderEmail(opts: {
 <body bgcolor="${BG}" style="margin:0;padding:0;background-color:${BG};">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${BG}" style="background-color:${BG};padding:8px 0;">
     <tr>
-      <td align="center" style="padding:8px;">
-        <table role="presentation" class="sl-card" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${CARD}" style="max-width:520px;width:100%;background-color:${CARD};border-radius:16px;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+      <td class="sl-outer-pad" align="center" style="padding:8px 0;">
+        <table role="presentation" class="sl-card" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${CARD}" style="max-width:600px;width:100%;background-color:${CARD};border-radius:16px;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
           <!-- Header -->
           <tr>
             <td class="sl-card-pad" style="padding:18px 24px 14px 24px;border-bottom:1px solid ${ROW_BORDER};">
@@ -222,16 +215,17 @@ function fmtUsd(n: number): string {
   return `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-function fmtDate(d: Date = new Date()): string {
-  return d.toLocaleString("en-GB", {
+function fmtDate(d: Date = new Date(), timezone?: string | null): string {
+  return d.toLocaleString("en-US", {
     weekday: "long",
-    day: "numeric",
     month: "long",
+    day: "numeric",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-    timeZone: "Europe/London",
-  }).replace(",", ",").replace(" at ", " at ");
+    timeZone: timezone || "UTC",
+    timeZoneName: "short",
+  });
 }
 
 // ---------- specific notifications ----------
@@ -264,7 +258,7 @@ function maskAddress(addr: string): string {
 export function sendWithdrawalRequestedEmail(
   to: string,
   name: string,
-  data: { amount: number; method: string; address?: string | null }
+  data: { amount: number; method: string; address?: string | null; timezone?: string | null }
 ): void {
   const rows: EmailRow[] = [
     { label: "User", value: name },
@@ -274,7 +268,7 @@ export function sendWithdrawalRequestedEmail(
   rows.push(
     { label: "Method", value: data.method },
     { label: "Status", value: "Pending Review" },
-    { label: "Submitted At", value: fmtDate() }
+    { label: "Submitted At", value: fmtDate(new Date(), data.timezone) }
   );
   const html = renderEmail({
     title: "Withdrawal Requested",
@@ -288,7 +282,7 @@ export function sendWithdrawalRequestedEmail(
 export function sendWithdrawalCompletedEmail(
   to: string,
   name: string,
-  data: { amount: number; method: string; address?: string | null }
+  data: { amount: number; method: string; address?: string | null; timezone?: string | null }
 ): void {
   const rows: EmailRow[] = [
     { label: "User", value: name },
@@ -298,7 +292,7 @@ export function sendWithdrawalCompletedEmail(
   rows.push(
     { label: "Method", value: data.method },
     { label: "Status", value: "Completed" },
-    { label: "Processed At", value: fmtDate() }
+    { label: "Processed At", value: fmtDate(new Date(), data.timezone) }
   );
   const html = renderEmail({
     title: "Withdrawal Completed",
@@ -309,7 +303,7 @@ export function sendWithdrawalCompletedEmail(
   dispatch(sendEmail(to, subject, html), subject, to);
 }
 
-export function sendWithdrawalRejectedEmail(to: string, name: string, data: { amount: number; method: string }): void {
+export function sendWithdrawalRejectedEmail(to: string, name: string, data: { amount: number; method: string; timezone?: string | null }): void {
   const html = renderEmail({
     title: "Withdrawal Rejected",
     rows: [
@@ -317,7 +311,7 @@ export function sendWithdrawalRejectedEmail(to: string, name: string, data: { am
       { label: "Amount", value: fmtUsd(data.amount) },
       { label: "Method", value: data.method },
       { label: "Status", value: "Rejected" },
-      { label: "Reviewed At", value: fmtDate() },
+      { label: "Reviewed At", value: fmtDate(new Date(), data.timezone) },
     ],
     outro: "The withdrawn amount has been returned to your account balance. Please contact support if you believe this was a mistake.",
   });

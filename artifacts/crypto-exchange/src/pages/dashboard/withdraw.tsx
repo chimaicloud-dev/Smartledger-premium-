@@ -8,6 +8,7 @@ import {
   useGetWithdrawalAddresses,
   useWithdraw,
 } from "@workspace/api-client-react";
+import type { WithdrawRequestMethod } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
@@ -118,7 +119,14 @@ export default function WithdrawPage() {
     setSubmittedIcon(selectedCrypto.icon);
     setSubmittedTxId(txId);
     setSubmittedAt(timestamp);
-    mutate({ data: { amount: numAmount, method: selectedCrypto.id, address: cryptoAddress.trim() } });
+    mutate({
+      data: {
+        amount: numAmount,
+        method: selectedCrypto.id as WithdrawRequestMethod,
+        address: cryptoAddress.trim(),
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      },
+    });
   };
 
   const handleCopyAddress = (addr: string) => {

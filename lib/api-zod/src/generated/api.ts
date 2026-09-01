@@ -503,6 +503,12 @@ export const WithdrawBody = zod.object({
     "doge",
   ]),
   address: zod.string().min(withdrawBodyAddressMin).max(withdrawBodyAddressMax),
+  timezone: zod
+    .string()
+    .optional()
+    .describe(
+      "IANA timezone reported by the user's device, such as Africa\/Lagos.",
+    ),
 });
 
 export const WithdrawResponse = zod.object({

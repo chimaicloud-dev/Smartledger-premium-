@@ -1071,6 +1071,9 @@ components:
           type: string
           minLength: 20
           maxLength: 100
+        timezone:
+          type: string
+          description: IANA timezone reported by the user's device, such as Africa/Lagos.
       required:
         - amount
         - method

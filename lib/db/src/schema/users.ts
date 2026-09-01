@@ -15,6 +15,7 @@ export const usersTable = pgTable("users", {
   kycStatus: text("kyc_status").notNull().default("unverified"),
   role: text("role").notNull().default("user"),
   status: text("status").notNull().default("active"),
+  timezone: text("timezone"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

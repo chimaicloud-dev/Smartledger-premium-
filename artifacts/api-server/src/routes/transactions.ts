@@ -317,7 +317,7 @@ router.post("/withdraw", async (req, res) => {
     return;
   }
 
-  const { amount, method, address } = parsed.data;
+  const { amount, method, address, timezone } = parsed.data;
   const normalizedAddress = address?.trim();
   if (!normalizedAddress) {
     res.status(400).json({ error: "A withdrawal wallet address is required" });
@@ -336,6 +336,16 @@ router.post("/withdraw", async (req, res) => {
   if (amount <= 0) {
     res.status(400).json({ error: "Amount must be positive" });
     return;
+  }
+  let deviceTimezone: string | undefined;
+  if (timezone) {
+    try {
+      new Intl.DateTimeFormat("en-US", { timeZone: timezone }).format();
+      deviceTimezone = timezone;
+    } catch {
+      res.status(400).json({ error: "Invalid device timezone" });
+      return;
+    }
   }
 
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.session.userId)).limit(1);
@@ -404,6 +414,11 @@ router.post("/withdraw", async (req, res) => {
           status: "pending",
         })
         .returning();
+      if (deviceTimezone && deviceTimezone !== user.timezone) {
+        await trx.update(usersTable)
+          .set({ timezone: deviceTimezone })
+          .where(eq(usersTable.id, user.id));
+      }
       return created;
     });
   } catch (err) {
@@ -420,7 +435,12 @@ router.post("/withdraw", async (req, res) => {
     throw err;
   }
 
-  sendWithdrawalRequestedEmail(user.email, user.name, { amount: usdValue, method: `${amount} ${sym} (${method})`, address: normalizedAddress });
+  sendWithdrawalRequestedEmail(user.email, user.name, {
+    amount: usdValue,
+    method: `${amount} ${sym} (${method})`,
+    address: normalizedAddress,
+    timezone: deviceTimezone ?? user.timezone,
+  });
   notifyAdminWithdrawalRequested(user.name, { amount: usdValue, method: `${amount} ${sym} (${method})`, address: normalizedAddress });
 
   res.json({

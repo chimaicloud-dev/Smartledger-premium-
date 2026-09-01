@@ -37,6 +37,7 @@ export async function ensureSchema(log: typeof Logger): Promise<void> {
         CONSTRAINT "withdrawal_addresses_user_method_unique" UNIQUE ("user_id", "method")
       )
     `);
+    await pool.query(`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "timezone" text`);
     log.info("schema.ensured");
   } catch (err) {
     log.error({ err }, "schema.ensure_failed");
