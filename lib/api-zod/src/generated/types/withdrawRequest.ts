@@ -5,9 +5,14 @@
  * CryptoX Exchange API
  * OpenAPI spec version: 0.1.0
  */
+import type { WithdrawRequestMethod } from "./withdrawRequestMethod";
 
 export interface WithdrawRequest {
   amount: number;
-  method: string;
-  address?: string;
+  method: WithdrawRequestMethod;
+  /**
+   * @minLength 20
+   * @maxLength 100
+   */
+  address: string;
 }

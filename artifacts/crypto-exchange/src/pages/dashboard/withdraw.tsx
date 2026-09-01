@@ -1,13 +1,19 @@
 import { apiErrorMessage } from "@/lib/api-error";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { DashboardLayout } from "@/components/layout";
-import { useWithdraw, useGetPortfolio } from "@workspace/api-client-react";
+import {
+  getGetWithdrawalAddressesQueryKey,
+  useDeleteWithdrawalAddress,
+  useGetPortfolio,
+  useGetWithdrawalAddresses,
+  useWithdraw,
+} from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import {
   CheckCircle2, AlertCircle, ChevronRight, Clock,
-  ArrowUpFromLine, Copy, Info, Loader2, ExternalLink, ShieldCheck
+  ArrowUpFromLine, Copy, Info, Loader2, ExternalLink, ShieldCheck, Trash2
 } from "lucide-react";
 
 // fee is denominated in the coin itself
@@ -33,6 +39,7 @@ export default function WithdrawPage() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const { data: portfolio } = useGetPortfolio();
+  const { data: savedAddresses = [] } = useGetWithdrawalAddresses();
   const kycVerified = user?.kycStatus === "verified";
   const [selectedCrypto, setSelectedCrypto] = useState(CRYPTO_METHODS[0]);
   const [amount, setAmount] = useState("");
@@ -53,6 +60,20 @@ export default function WithdrawPage() {
   const [submittedAt, setSubmittedAt] = useState("");
   const [copiedTx, setCopiedTx] = useState(false);
   const [copiedSentAddr, setCopiedSentAddr] = useState(false);
+  const savedAddress = savedAddresses.find(item => item.method === selectedCrypto.id);
+
+  useEffect(() => {
+    setCryptoAddress(savedAddress?.address ?? "");
+  }, [savedAddress?.address, selectedCrypto.id]);
+
+  const deleteAddress = useDeleteWithdrawalAddress({
+    mutation: {
+      onSuccess: () => {
+        setCryptoAddress("");
+        queryClient.invalidateQueries({ queryKey: getGetWithdrawalAddressesQueryKey() });
+      },
+    },
+  });
 
   const { mutate, isPending, error } = useWithdraw({
     mutation: {
@@ -60,8 +81,8 @@ export default function WithdrawPage() {
         setSuccess(true);
         queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
         queryClient.invalidateQueries({ queryKey: ["/api/portfolio"] });
+        queryClient.invalidateQueries({ queryKey: getGetWithdrawalAddressesQueryKey() });
         setAmount("");
-        setCryptoAddress("");
       }
     }
   });
@@ -410,16 +431,31 @@ export default function WithdrawPage() {
 
               {/* Wallet address */}
               <div className="space-y-2">
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                  {selectedCrypto.label} Wallet Address
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center justify-between gap-3">
+                  <span>{selectedCrypto.label} Wallet Address</span>
+                  {savedAddress && (
+                    <button
+                      type="button"
+                      onClick={() => deleteAddress.mutate({ method: selectedCrypto.id })}
+                      disabled={deleteAddress.isPending}
+                      className="normal-case tracking-normal inline-flex items-center gap-1 text-red-400 hover:text-red-300 disabled:opacity-50"
+                    >
+                      {deleteAddress.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+                      Delete saved address
+                    </button>
+                  )}
                 </label>
                 <div className="relative">
                   <input
                     type="text"
                     value={cryptoAddress}
                     onChange={e => { setCryptoAddress(e.target.value); setFieldError(""); }}
+                     readOnly={Boolean(savedAddress)}
                     placeholder={`Paste your ${selectedCrypto.symbol} address here...`}
-                    className="w-full bg-background border border-border rounded-xl px-4 py-3.5 pr-10 text-sm font-mono text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 transition-all"
+                     className={cn(
+                       "w-full bg-background border border-border rounded-xl px-4 py-3.5 pr-10 text-sm font-mono text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 transition-all",
+                       savedAddress && "bg-secondary/30 cursor-default"
+                     )}
                   />
                   {cryptoAddress && (
                     <button onClick={() => handleCopyAddress(cryptoAddress)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
@@ -427,8 +463,13 @@ export default function WithdrawPage() {
                     </button>
                   )}
                 </div>
-                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                  <Info className="w-3 h-3" /> Only send to a <span className="font-semibold text-foreground">{selectedCrypto.network}</span> address. Wrong network = lost funds.
+                <p className="text-xs text-muted-foreground flex items-start gap-1">
+                  <Info className="w-3 h-3 shrink-0 mt-0.5" />
+                  <span>
+                    {savedAddress
+                      ? "This address is saved for future withdrawals. Delete it above before using a different address."
+                      : <>Your first successful withdrawal address will be saved for this network. Only use a <span className="font-semibold text-foreground">{selectedCrypto.network}</span> address.</>}
+                  </span>
                 </p>
               </div>
 

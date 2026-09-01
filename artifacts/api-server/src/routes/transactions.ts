@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request } from "express";
-import { db, usersTable, holdingsTable, transactionsTable } from "@workspace/db";
+import { db, usersTable, holdingsTable, transactionsTable, withdrawalAddressesTable } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
 import { DepositBody, WithdrawBody, ConvertCryptoBody } from "@workspace/api-zod";
 import { fetchForexPrices, getForexAssetMeta } from "../lib/forex";
@@ -9,7 +9,8 @@ import { debitUsdAcrossHoldings } from "../lib/balance";
 
 // Sentinel to roll back a multi-coin debit transaction on insufficient funds.
 class InsufficientBalanceError extends Error {}
-import { methodToSymbol } from "../lib/withdraw-methods";
+class SavedAddressMismatchError extends Error {}
+import { isCanonicalWithdrawalMethod, isValidWithdrawalAddress, methodToSymbol } from "../lib/withdraw-methods";
 import { sendWithdrawalRequestedEmail, sendDepositReceivedEmail, notifyAdminDepositReceived, notifyAdminWithdrawalRequested } from "../lib/email";
 
 declare module "express-session" {
@@ -42,6 +43,30 @@ async function resolveAssetPrice(req: Request, symbol: string): Promise<{ name: 
 }
 
 const router: IRouter = Router();
+
+router.get("/withdrawal-addresses", async (req, res) => {
+  if (!req.session.userId) {
+    res.status(401).json({ error: "Not authenticated" });
+    return;
+  }
+  const rows = await db
+    .select({ method: withdrawalAddressesTable.method, address: withdrawalAddressesTable.address })
+    .from(withdrawalAddressesTable)
+    .where(eq(withdrawalAddressesTable.userId, req.session.userId));
+  res.json(rows);
+});
+
+router.delete("/withdrawal-addresses/:method", async (req, res) => {
+  if (!req.session.userId) {
+    res.status(401).json({ error: "Not authenticated" });
+    return;
+  }
+  await db.delete(withdrawalAddressesTable).where(and(
+    eq(withdrawalAddressesTable.userId, req.session.userId),
+    eq(withdrawalAddressesTable.method, req.params.method),
+  ));
+  res.status(204).send();
+});
 
 router.get("/", async (req, res) => {
   if (!req.session.userId) {
@@ -293,10 +318,19 @@ router.post("/withdraw", async (req, res) => {
   }
 
   const { amount, method, address } = parsed.data;
+  const normalizedAddress = address?.trim();
+  if (!normalizedAddress) {
+    res.status(400).json({ error: "A withdrawal wallet address is required" });
+    return;
+  }
 
   const sym = methodToSymbol(method);
-  if (!sym) {
+  if (!sym || !isCanonicalWithdrawalMethod(method)) {
     res.status(400).json({ error: "Unknown withdrawal method. Only crypto withdrawals are supported." });
+    return;
+  }
+  if (!isValidWithdrawalAddress(method, normalizedAddress)) {
+    res.status(400).json({ error: `Invalid wallet address for the selected ${method} network.` });
     return;
   }
   if (amount <= 0) {
@@ -320,48 +354,74 @@ router.post("/withdraw", async (req, res) => {
     return;
   }
 
-  // amount is in coin units — check and debit the coin's balance
-  const [holding] = await db
-    .select()
-    .from(holdingsTable)
-    .where(and(eq(holdingsTable.userId, user.id), eq(holdingsTable.symbol, sym)))
-    .limit(1);
-
-  if (!holding || holding.amount < amount) {
-    res.status(400).json({ error: `Insufficient ${sym} balance` });
-    return;
-  }
-
-  // Atomic conditional debit — guards against concurrent withdrawals double-spending.
-  const [debitedHolding] = await db
-    .update(holdingsTable)
-    .set({ amount: sql`${holdingsTable.amount} - ${amount}`, updatedAt: new Date() })
-    .where(and(eq(holdingsTable.id, holding.id), sql`${holdingsTable.amount} >= ${amount}`))
-    .returning();
-  if (!debitedHolding) {
-    res.status(400).json({ error: `Insufficient ${sym} balance` });
-    return;
-  }
-
   const assetInfo = await resolveAssetPrice(req, sym);
   const usdValue = amount * (assetInfo?.price ?? 0);
+  let tx;
+  try {
+    tx = await db.transaction(async (trx) => {
+      // First use claims the permanent address for this network. The unique
+      // constraint makes concurrent first withdrawals agree on one address.
+      await trx.insert(withdrawalAddressesTable)
+        .values({ userId: user.id, method, address: normalizedAddress })
+        .onConflictDoNothing();
 
-  const [tx] = await db
-    .insert(transactionsTable)
-    .values({
-      userId: user.id,
-      type: "withdraw",
-      coin: method,
-      symbol: address ?? null,
-      amount,
-      usdAmount: usdValue,
-      price: assetInfo?.price ?? null,
-      status: "pending",
-    })
-    .returning();
+      const [savedAddress] = await trx
+        .select()
+        .from(withdrawalAddressesTable)
+        .where(and(
+          eq(withdrawalAddressesTable.userId, user.id),
+          eq(withdrawalAddressesTable.method, method),
+        ))
+        .limit(1);
+      if (!savedAddress || savedAddress.address !== normalizedAddress) {
+        throw new SavedAddressMismatchError();
+      }
 
-  sendWithdrawalRequestedEmail(user.email, user.name, { amount: usdValue, method: `${amount} ${sym} (${method})`, address });
-  notifyAdminWithdrawalRequested(user.name, { amount: usdValue, method: `${amount} ${sym} (${method})`, address });
+      const [holding] = await trx
+        .select()
+        .from(holdingsTable)
+        .where(and(eq(holdingsTable.userId, user.id), eq(holdingsTable.symbol, sym)))
+        .limit(1);
+      if (!holding) throw new InsufficientBalanceError();
+
+      const [debitedHolding] = await trx
+        .update(holdingsTable)
+        .set({ amount: sql`${holdingsTable.amount} - ${amount}`, updatedAt: new Date() })
+        .where(and(eq(holdingsTable.id, holding.id), sql`${holdingsTable.amount} >= ${amount}`))
+        .returning();
+      if (!debitedHolding) throw new InsufficientBalanceError();
+
+      const [created] = await trx
+        .insert(transactionsTable)
+        .values({
+          userId: user.id,
+          type: "withdraw",
+          coin: method,
+          symbol: normalizedAddress,
+          amount,
+          usdAmount: usdValue,
+          price: assetInfo?.price ?? null,
+          status: "pending",
+        })
+        .returning();
+      return created;
+    });
+  } catch (err) {
+    if (err instanceof SavedAddressMismatchError) {
+      res.status(409).json({
+        error: "Delete your saved address before using a different one for this network.",
+      });
+      return;
+    }
+    if (err instanceof InsufficientBalanceError) {
+      res.status(400).json({ error: `Insufficient ${sym} balance` });
+      return;
+    }
+    throw err;
+  }
+
+  sendWithdrawalRequestedEmail(user.email, user.name, { amount: usdValue, method: `${amount} ${sym} (${method})`, address: normalizedAddress });
+  notifyAdminWithdrawalRequested(user.name, { amount: usdValue, method: `${amount} ${sym} (${method})`, address: normalizedAddress });
 
   res.json({
     id: tx.id,

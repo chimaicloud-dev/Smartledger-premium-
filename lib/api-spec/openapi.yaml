@@ -557,6 +557,36 @@ paths:
               schema:
                 $ref: "#/components/schemas/Transaction"
 
+  /transactions/withdrawal-addresses:
+    get:
+      operationId: getWithdrawalAddresses
+      tags: [transactions]
+      summary: Get the authenticated user's saved withdrawal addresses
+      responses:
+        "200":
+          description: Saved addresses by withdrawal method
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WithdrawalAddress"
+
+  /transactions/withdrawal-addresses/{method}:
+    delete:
+      operationId: deleteWithdrawalAddress
+      tags: [transactions]
+      summary: Delete a saved withdrawal address so it can be replaced
+      parameters:
+        - name: method
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Address deleted
+
   /market/prices:
     get:
       operationId: getMarketPrices
@@ -1036,11 +1066,26 @@ components:
           type: number
         method:
           type: string
+          enum: [btc, eth, usdt_trc20, usdt_erc20, bnb, sol, xrp, ltc, trx, doge]
         address:
           type: string
+          minLength: 20
+          maxLength: 100
       required:
         - amount
         - method
+        - address
+
+    WithdrawalAddress:
+      type: object
+      properties:
+        method:
+          type: string
+        address:
+          type: string
+      required:
+        - method
+        - address
 
     CoinPrice:
       type: object

@@ -42,6 +42,7 @@ import type {
   Transaction,
   User,
   WithdrawRequest,
+  WithdrawalAddress,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -2292,6 +2293,166 @@ export const useWithdraw = <
   TContext
 > => {
   return useMutation(getWithdrawMutationOptions(options));
+};
+
+/**
+ * @summary Get the authenticated user's saved withdrawal addresses
+ */
+export const getGetWithdrawalAddressesUrl = () => {
+  return `/api/transactions/withdrawal-addresses`;
+};
+
+export const getWithdrawalAddresses = async (
+  options?: RequestInit,
+): Promise<WithdrawalAddress[]> => {
+  return customFetch<WithdrawalAddress[]>(getGetWithdrawalAddressesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetWithdrawalAddressesQueryKey = () => {
+  return [`/api/transactions/withdrawal-addresses`] as const;
+};
+
+export const getGetWithdrawalAddressesQueryOptions = <
+  TData = Awaited<ReturnType<typeof getWithdrawalAddresses>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getWithdrawalAddresses>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetWithdrawalAddressesQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getWithdrawalAddresses>>
+  > = ({ signal }) => getWithdrawalAddresses({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getWithdrawalAddresses>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetWithdrawalAddressesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getWithdrawalAddresses>>
+>;
+export type GetWithdrawalAddressesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get the authenticated user's saved withdrawal addresses
+ */
+
+export function useGetWithdrawalAddresses<
+  TData = Awaited<ReturnType<typeof getWithdrawalAddresses>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getWithdrawalAddresses>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetWithdrawalAddressesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Delete a saved withdrawal address so it can be replaced
+ */
+export const getDeleteWithdrawalAddressUrl = (method: string) => {
+  return `/api/transactions/withdrawal-addresses/${method}`;
+};
+
+export const deleteWithdrawalAddress = async (
+  method: string,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteWithdrawalAddressUrl(method), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteWithdrawalAddressMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteWithdrawalAddress>>,
+    TError,
+    { method: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteWithdrawalAddress>>,
+  TError,
+  { method: string },
+  TContext
+> => {
+  const mutationKey = ["deleteWithdrawalAddress"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteWithdrawalAddress>>,
+    { method: string }
+  > = (props) => {
+    const { method } = props ?? {};
+
+    return deleteWithdrawalAddress(method, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteWithdrawalAddressMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteWithdrawalAddress>>
+>;
+
+export type DeleteWithdrawalAddressMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a saved withdrawal address so it can be replaced
+ */
+export const useDeleteWithdrawalAddress = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteWithdrawalAddress>>,
+    TError,
+    { method: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteWithdrawalAddress>>,
+  TError,
+  { method: string },
+  TContext
+> => {
+  return useMutation(getDeleteWithdrawalAddressMutationOptions(options));
 };
 
 /**

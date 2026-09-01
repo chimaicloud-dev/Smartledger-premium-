@@ -267,10 +267,35 @@ export interface ConvertResponse {
   usdValue: number;
 }
 
+export type WithdrawRequestMethod =
+  (typeof WithdrawRequestMethod)[keyof typeof WithdrawRequestMethod];
+
+export const WithdrawRequestMethod = {
+  btc: "btc",
+  eth: "eth",
+  usdt_trc20: "usdt_trc20",
+  usdt_erc20: "usdt_erc20",
+  bnb: "bnb",
+  sol: "sol",
+  xrp: "xrp",
+  ltc: "ltc",
+  trx: "trx",
+  doge: "doge",
+} as const;
+
 export interface WithdrawRequest {
   amount: number;
+  method: WithdrawRequestMethod;
+  /**
+   * @minLength 20
+   * @maxLength 100
+   */
+  address: string;
+}
+
+export interface WithdrawalAddress {
   method: string;
-  address?: string;
+  address: string;
 }
 
 export interface CoinPrice {

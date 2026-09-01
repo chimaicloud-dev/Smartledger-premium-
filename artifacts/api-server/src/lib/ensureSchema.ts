@@ -26,6 +26,17 @@ export async function ensureSchema(log: typeof Logger): Promise<void> {
         "completed_at" timestamp
       )
     `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS "withdrawal_addresses" (
+        "id" serial PRIMARY KEY,
+        "user_id" integer NOT NULL,
+        "method" text NOT NULL,
+        "address" text NOT NULL,
+        "created_at" timestamptz NOT NULL DEFAULT now(),
+        "updated_at" timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT "withdrawal_addresses_user_method_unique" UNIQUE ("user_id", "method")
+      )
+    `);
     log.info("schema.ensured");
   } catch (err) {
     log.error({ err }, "schema.ensure_failed");

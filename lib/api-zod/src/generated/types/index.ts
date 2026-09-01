@@ -41,4 +41,6 @@ export * from "./user";
 export * from "./userKycStatus";
 export * from "./userRole";
 export * from "./userStatus";
+export * from "./withdrawalAddress";
 export * from "./withdrawRequest";
+export * from "./withdrawRequestMethod";

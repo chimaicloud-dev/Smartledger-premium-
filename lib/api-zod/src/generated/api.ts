@@ -485,10 +485,24 @@ export const ConvertCryptoResponse = zod.object({
 /**
  * @summary Withdraw funds
  */
+export const withdrawBodyAddressMin = 20;
+export const withdrawBodyAddressMax = 100;
+
 export const WithdrawBody = zod.object({
   amount: zod.number(),
-  method: zod.string(),
-  address: zod.string().optional(),
+  method: zod.enum([
+    "btc",
+    "eth",
+    "usdt_trc20",
+    "usdt_erc20",
+    "bnb",
+    "sol",
+    "xrp",
+    "ltc",
+    "trx",
+    "doge",
+  ]),
+  address: zod.string().min(withdrawBodyAddressMin).max(withdrawBodyAddressMax),
 });
 
 export const WithdrawResponse = zod.object({
@@ -501,6 +515,24 @@ export const WithdrawResponse = zod.object({
   price: zod.number().nullish(),
   status: zod.enum(["completed", "pending", "failed"]),
   createdAt: zod.string(),
+});
+
+/**
+ * @summary Get the authenticated user's saved withdrawal addresses
+ */
+export const GetWithdrawalAddressesResponseItem = zod.object({
+  method: zod.string(),
+  address: zod.string(),
+});
+export const GetWithdrawalAddressesResponse = zod.array(
+  GetWithdrawalAddressesResponseItem,
+);
+
+/**
+ * @summary Delete a saved withdrawal address so it can be replaced
+ */
+export const DeleteWithdrawalAddressParams = zod.object({
+  method: zod.coerce.string(),
 });
 
 /**

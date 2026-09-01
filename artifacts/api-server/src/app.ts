@@ -1,5 +1,4 @@
 import express, { type Express } from "express";
-import cors from "cors";
 import session from "express-session";
 import pinoHttp from "pino-http";
 import router from "./routes";
@@ -33,7 +32,6 @@ app.use(
   }),
 );
 
-app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -47,10 +45,33 @@ app.use(
       secure: process.env.NODE_ENV === "production",
       httpOnly: true,
       maxAge: 7 * 24 * 60 * 60 * 1000,
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      sameSite: "lax",
     },
   }),
 );
+
+// This app's frontend and API share one host. Reject credentialed state
+// mutations initiated by another website, while allowing same-origin browser
+// requests and non-browser clients that do not send Origin.
+app.use((req, res, next) => {
+  if (["GET", "HEAD", "OPTIONS"].includes(req.method)) {
+    next();
+    return;
+  }
+  const origin = req.get("origin");
+  if (origin) {
+    try {
+      if (new URL(origin).host !== req.get("host")) {
+        res.status(403).json({ error: "Cross-origin request rejected" });
+        return;
+      }
+    } catch {
+      res.status(403).json({ error: "Invalid request origin" });
+      return;
+    }
+  }
+  next();
+});
 
 app.use("/api", router);
 
