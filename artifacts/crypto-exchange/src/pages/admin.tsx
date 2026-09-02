@@ -26,10 +26,15 @@ import {
   UserX,
   RefreshCw,
   Settings,
+  Eye,
+  Phone,
+  MapPin,
+  CalendarDays,
 } from "lucide-react";
 import {
   useGetAdminStats,
   useGetAdminUsers,
+  useGetAdminUserPreview,
   useGetAdminTransactions,
   useUpdateAdminUser,
   useDeleteAdminUser,
@@ -40,7 +45,7 @@ import {
   useRejectAdminKyc,
   useAdminCreateAdmin,
 } from "@workspace/api-client-react";
-import type { User, AdminTransaction } from "@workspace/api-client-react";
+import type { User, AdminTransaction, AdminUserPreview } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 
 type Tab = "overview" | "approvals" | "kyc" | "users" | "transactions" | "settings";
@@ -400,6 +405,7 @@ function UsersTab() {
   const [search, setSearch] = useState("");
   const { data: users, isLoading, refetch } = useGetAdminUsers({ search: search || undefined });
   const [editing, setEditing] = useState<User | null>(null);
+  const [previewing, setPreviewing] = useState<User | null>(null);
   const [showCreateAdmin, setShowCreateAdmin] = useState(false);
 
   if (isLoading) return <div className="text-muted-foreground text-sm">Loading users...</div>;
@@ -443,6 +449,9 @@ function UsersTab() {
               </div>
             </div>
             <div className="flex gap-2 mt-3 pt-3 border-t border-border flex-wrap">
+              <Button size="sm" variant="outline" onClick={() => setPreviewing(u)}>
+                <Eye className="w-3.5 h-3.5 mr-1" /> Preview
+              </Button>
               <Button size="sm" variant="outline" onClick={() => setEditing(u)}>
                 <Edit className="w-3.5 h-3.5 mr-1" /> Manage
               </Button>
@@ -459,9 +468,136 @@ function UsersTab() {
       {editing && (
         <UserEditModal user={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); refetch(); }} />
       )}
+      {previewing && (
+        <UserPreviewModal user={previewing} onClose={() => setPreviewing(null)} />
+      )}
       {showCreateAdmin && (
         <CreateAdminModal onClose={() => setShowCreateAdmin(false)} onSaved={() => { setShowCreateAdmin(false); refetch(); }} />
       )}
+    </div>
+  );
+}
+
+function UserPreviewModal({ user, onClose }: { user: User; onClose: () => void }) {
+  const { data, isLoading, isError } = useGetAdminUserPreview(user.id);
+
+  return (
+    <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-3 md:p-6" onClick={onClose}>
+      <div className="bg-card border border-border rounded-2xl w-full max-w-4xl max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="sticky top-0 z-10 bg-card p-5 border-b border-border flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="font-display font-bold text-lg truncate">Account Preview · {user.name}</h3>
+            <p className="text-xs text-muted-foreground">Read-only view of registration details, balances, and activity</p>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground shrink-0" aria-label="Close preview">
+            <XCircle className="w-5 h-5" />
+          </button>
+        </div>
+
+        {isLoading && <div className="p-10 text-center text-sm text-muted-foreground">Loading account details...</div>}
+        {isError && <div className="m-5 p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-sm text-red-400">Could not load this account preview.</div>}
+        {data && <UserPreviewContent preview={data} />}
+      </div>
+    </div>
+  );
+}
+
+function UserPreviewContent({ preview }: { preview: AdminUserPreview }) {
+  const formatMoney = (value: number) =>
+    new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(value);
+  const formatDateOnly = (value: string) => {
+    const [year, month, day] = value.split("-").map(Number);
+    if (!year || !month || !day) return value;
+    return new Date(year, month - 1, day).toLocaleDateString();
+  };
+  const detailItems = [
+    { label: "Email", value: preview.email },
+    { label: "Phone number", value: preview.phone || "Not provided", icon: Phone },
+    { label: "Country", value: preview.country || "Not provided", icon: MapPin },
+    { label: "Date of birth", value: preview.dateOfBirth ? formatDateOnly(preview.dateOfBirth) : "Not provided", icon: CalendarDays },
+    { label: "Experience", value: preview.experience || "Not provided" },
+    { label: "Timezone", value: preview.timezone || "Not captured" },
+    { label: "Joined", value: new Date(preview.createdAt).toLocaleString() },
+    { label: "User ID", value: `#${preview.id}` },
+  ];
+
+  return (
+    <div className="p-5 space-y-6">
+      <section>
+        <div className="flex items-center gap-2 flex-wrap mb-3">
+          <h4 className="font-semibold">Registration details</h4>
+          <KycChip status={preview.kycStatus} />
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-border uppercase">{preview.role}</span>
+          <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full border uppercase", preview.status === "active" ? "text-green-400 border-green-500/30" : "text-red-400 border-red-500/30")}>
+            {preview.status}
+          </span>
+        </div>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {detailItems.map(({ label, value, icon: Icon }) => (
+            <div key={label} className="rounded-xl bg-secondary/30 border border-border p-3 min-w-0">
+              <div className="text-[10px] uppercase tracking-wide text-muted-foreground flex items-center gap-1">
+                {Icon && <Icon className="w-3 h-3" />} {label}
+              </div>
+              <div className="text-sm font-medium mt-1 break-words">{value}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <h4 className="font-semibold mb-3">Account value</h4>
+        <div className="grid sm:grid-cols-2 gap-3">
+          <div className="rounded-xl bg-secondary/30 border border-border p-4">
+            <div className="text-xs text-muted-foreground">Stored USD balance</div>
+            <div className="text-xl font-bold mt-1">{formatMoney(preview.usdBalance)}</div>
+          </div>
+          <div className="rounded-xl bg-secondary/30 border border-border p-4">
+            <div className="text-xs text-muted-foreground">Crypto holdings value</div>
+            <div className="text-xl font-bold mt-1">{formatMoney(preview.totalHoldingsValue)}</div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h4 className="font-semibold mb-3">Holdings</h4>
+        <div className="rounded-xl border border-border overflow-x-auto">
+          {preview.holdings.length ? (
+            <table className="w-full text-sm">
+              <thead className="bg-secondary/40 text-muted-foreground text-xs">
+                <tr><th className="text-left p-3">Asset</th><th className="text-right p-3">Amount</th><th className="text-right p-3">Value</th></tr>
+              </thead>
+              <tbody>
+                {preview.holdings.map((holding) => (
+                  <tr key={holding.id} className="border-t border-border">
+                    <td className="p-3 font-medium">{holding.coin} <span className="text-xs text-muted-foreground">({holding.symbol})</span></td>
+                    <td className="p-3 text-right font-mono">{holding.amount.toLocaleString(undefined, { maximumFractionDigits: 8 })}</td>
+                    <td className="p-3 text-right">{formatMoney(holding.currentValue)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : <div className="p-6 text-center text-sm text-muted-foreground">No holdings in this account.</div>}
+        </div>
+      </section>
+
+      <section>
+        <h4 className="font-semibold mb-3">Recent transactions</h4>
+        <div className="space-y-2">
+          {preview.recentTransactions.map((transaction) => (
+            <div key={transaction.id} className="rounded-xl bg-secondary/30 border border-border p-3 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-sm font-medium capitalize">{transaction.type} {transaction.symbol && `· ${transaction.symbol}`}</div>
+                <div className="text-xs text-muted-foreground">{new Date(transaction.createdAt).toLocaleString()} · #{transaction.id}</div>
+              </div>
+              <div className="text-right shrink-0">
+                <div className="text-sm font-semibold">{formatMoney(transaction.usdAmount)}</div>
+                <StatusBadge status={transaction.status} />
+              </div>
+            </div>
+          ))}
+          {!preview.recentTransactions.length && <div className="p-6 text-center text-sm text-muted-foreground rounded-xl border border-border">No transactions yet.</div>}
+        </div>
+      </section>
     </div>
   );
 }

@@ -369,6 +369,49 @@ paths:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
 
+  /admin/users/{id}/preview:
+    get:
+      operationId: getAdminUserPreview
+      tags: [admin]
+      summary: Preview a user's registration and account details (admin only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: User account preview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUserPreview"
+        "400":
+          description: Invalid user ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /admin/transactions:
     get:
       operationId: getAdminTransactions
@@ -802,6 +845,91 @@ components:
         - usdAmount
         - status
         - createdAt
+
+    AdminUserPreviewHolding:
+      type: object
+      properties:
+        id:
+          type: integer
+        coin:
+          type: string
+        symbol:
+          type: string
+        amount:
+          type: number
+        avgBuyPrice:
+          type: number
+        currentPrice:
+          type: number
+        currentValue:
+          type: number
+        updatedAt:
+          type: string
+      required: [id, coin, symbol, amount, avgBuyPrice, currentPrice, currentValue, updatedAt]
+
+    AdminUserPreviewTransaction:
+      type: object
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+        coin:
+          type: ["string", "null"]
+        symbol:
+          type: ["string", "null"]
+        amount:
+          type: ["number", "null"]
+        usdAmount:
+          type: number
+        price:
+          type: ["number", "null"]
+        status:
+          type: string
+        createdAt:
+          type: string
+      required: [id, type, coin, symbol, amount, usdAmount, price, status, createdAt]
+
+    AdminUserPreview:
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        name:
+          type: string
+        phone:
+          type: ["string", "null"]
+        country:
+          type: ["string", "null"]
+        dateOfBirth:
+          type: ["string", "null"]
+        experience:
+          type: string
+        usdBalance:
+          type: number
+        kycStatus:
+          type: string
+        role:
+          type: string
+        status:
+          type: string
+        timezone:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        holdings:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminUserPreviewHolding"
+        totalHoldingsValue:
+          type: number
+        recentTransactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminUserPreviewTransaction"
+      required: [id, email, name, phone, country, dateOfBirth, experience, usdBalance, kycStatus, role, status, timezone, createdAt, holdings, totalHoldingsValue, recentTransactions]
 
     AdminCreateRequest:
       type: object

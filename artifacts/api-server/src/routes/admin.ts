@@ -84,6 +84,75 @@ router.get("/users", async (req, res) => {
   res.json(filtered.map(userToResponse));
 });
 
+router.get("/users/:id/preview", async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, id)).limit(1);
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  const [holdings, recentTransactions] = await Promise.all([
+    db.select().from(holdingsTable).where(eq(holdingsTable.userId, id)).orderBy(desc(holdingsTable.updatedAt)),
+    db.select().from(transactionsTable).where(eq(transactionsTable.userId, id)).orderBy(desc(transactionsTable.createdAt)).limit(25),
+  ]);
+
+  let prices: Record<string, number> = {};
+  try {
+    prices = await getPriceMap(req);
+  } catch {
+    // Static prices below keep the read-only preview available if market data is temporarily unavailable.
+  }
+
+  const previewHoldings = holdings.map((holding) => {
+    const currentPrice = prices[holding.symbol] || COIN_INFO[holding.symbol]?.price || holding.avgBuyPrice;
+    return {
+      id: holding.id,
+      coin: holding.coin,
+      symbol: holding.symbol,
+      amount: holding.amount,
+      avgBuyPrice: holding.avgBuyPrice,
+      currentPrice,
+      currentValue: holding.amount * currentPrice,
+      updatedAt: holding.updatedAt.toISOString(),
+    };
+  });
+
+  res.json({
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    phone: user.phone,
+    country: user.country,
+    dateOfBirth: user.dateOfBirth,
+    experience: user.experience,
+    usdBalance: user.usdBalance,
+    kycStatus: user.kycStatus,
+    role: user.role,
+    status: user.status,
+    timezone: user.timezone,
+    createdAt: user.createdAt.toISOString(),
+    holdings: previewHoldings,
+    totalHoldingsValue: previewHoldings.reduce((total, holding) => total + holding.currentValue, 0),
+    recentTransactions: recentTransactions.map((transaction) => ({
+      id: transaction.id,
+      type: transaction.type,
+      coin: transaction.coin,
+      symbol: transaction.symbol,
+      amount: transaction.amount,
+      usdAmount: transaction.usdAmount,
+      price: transaction.price,
+      status: transaction.status,
+      createdAt: transaction.createdAt.toISOString(),
+    })),
+  });
+});
+
 router.patch("/users/:id", async (req, res) => {
   const id = Number(req.params.id);
   if (Number.isNaN(id)) {

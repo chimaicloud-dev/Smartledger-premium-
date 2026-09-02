@@ -331,6 +331,55 @@ export const DeleteAdminUserResponse = zod.object({
 });
 
 /**
+ * @summary Preview a user's registration and account details (admin only)
+ */
+export const GetAdminUserPreviewParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetAdminUserPreviewResponse = zod.object({
+  id: zod.number(),
+  email: zod.string(),
+  name: zod.string(),
+  phone: zod.string().nullable(),
+  country: zod.string().nullable(),
+  dateOfBirth: zod.string().nullable(),
+  experience: zod.string(),
+  usdBalance: zod.number(),
+  kycStatus: zod.string(),
+  role: zod.string(),
+  status: zod.string(),
+  timezone: zod.string().nullable(),
+  createdAt: zod.string(),
+  holdings: zod.array(
+    zod.object({
+      id: zod.number(),
+      coin: zod.string(),
+      symbol: zod.string(),
+      amount: zod.number(),
+      avgBuyPrice: zod.number(),
+      currentPrice: zod.number(),
+      currentValue: zod.number(),
+      updatedAt: zod.string(),
+    }),
+  ),
+  totalHoldingsValue: zod.number(),
+  recentTransactions: zod.array(
+    zod.object({
+      id: zod.number(),
+      type: zod.string(),
+      coin: zod.string().nullable(),
+      symbol: zod.string().nullable(),
+      amount: zod.number().nullable(),
+      usdAmount: zod.number(),
+      price: zod.number().nullable(),
+      status: zod.string(),
+      createdAt: zod.string(),
+    }),
+  ),
+});
+
+/**
  * @summary List all transactions (admin only)
  */
 export const GetAdminTransactionsQueryParams = zod.object({

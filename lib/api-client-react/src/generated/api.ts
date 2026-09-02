@@ -20,6 +20,7 @@ import type {
   AdminCreateRequest,
   AdminStats,
   AdminTransaction,
+  AdminUserPreview,
   AdminUserUpdate,
   AuthResponse,
   ChangePasswordRequest,
@@ -1525,6 +1526,93 @@ export const useDeleteAdminUser = <
 > => {
   return useMutation(getDeleteAdminUserMutationOptions(options));
 };
+
+/**
+ * @summary Preview a user's registration and account details (admin only)
+ */
+export const getGetAdminUserPreviewUrl = (id: number) => {
+  return `/api/admin/users/${id}/preview`;
+};
+
+export const getAdminUserPreview = async (
+  id: number,
+  options?: RequestInit,
+): Promise<AdminUserPreview> => {
+  return customFetch<AdminUserPreview>(getGetAdminUserPreviewUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetAdminUserPreviewQueryKey = (id: number) => {
+  return [`/api/admin/users/${id}/preview`] as const;
+};
+
+export const getGetAdminUserPreviewQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAdminUserPreview>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAdminUserPreview>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetAdminUserPreviewQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getAdminUserPreview>>
+  > = ({ signal }) => getAdminUserPreview(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAdminUserPreview>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetAdminUserPreviewQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAdminUserPreview>>
+>;
+export type GetAdminUserPreviewQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Preview a user's registration and account details (admin only)
+ */
+
+export function useGetAdminUserPreview<
+  TData = Awaited<ReturnType<typeof getAdminUserPreview>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAdminUserPreview>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetAdminUserPreviewQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary List all transactions (admin only)

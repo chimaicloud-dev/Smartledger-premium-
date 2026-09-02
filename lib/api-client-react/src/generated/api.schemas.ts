@@ -108,6 +108,56 @@ export interface AdminTransaction {
   createdAt: string;
 }
 
+export interface AdminUserPreviewHolding {
+  id: number;
+  coin: string;
+  symbol: string;
+  amount: number;
+  avgBuyPrice: number;
+  currentPrice: number;
+  currentValue: number;
+  updatedAt: string;
+}
+
+export interface AdminUserPreviewTransaction {
+  id: number;
+  type: string;
+  /** @nullable */
+  coin: string | null;
+  /** @nullable */
+  symbol: string | null;
+  /** @nullable */
+  amount: number | null;
+  usdAmount: number;
+  /** @nullable */
+  price: number | null;
+  status: string;
+  createdAt: string;
+}
+
+export interface AdminUserPreview {
+  id: number;
+  email: string;
+  name: string;
+  /** @nullable */
+  phone: string | null;
+  /** @nullable */
+  country: string | null;
+  /** @nullable */
+  dateOfBirth: string | null;
+  experience: string;
+  usdBalance: number;
+  kycStatus: string;
+  role: string;
+  status: string;
+  /** @nullable */
+  timezone: string | null;
+  createdAt: string;
+  holdings: AdminUserPreviewHolding[];
+  totalHoldingsValue: number;
+  recentTransactions: AdminUserPreviewTransaction[];
+}
+
 export interface AdminCreateRequest {
   email: string;
   password: string;
