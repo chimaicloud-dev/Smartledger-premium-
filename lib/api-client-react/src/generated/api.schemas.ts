@@ -287,7 +287,7 @@ export interface WithdrawRequest {
   amount: number;
   method: WithdrawRequestMethod;
   /**
-   * @minLength 20
+   * @minLength 1
    * @maxLength 100
    */
   address: string;

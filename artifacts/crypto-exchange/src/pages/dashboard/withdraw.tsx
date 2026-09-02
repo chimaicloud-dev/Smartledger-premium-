@@ -102,7 +102,7 @@ export default function WithdrawPage() {
     if (!numAmount || numAmount <= 0) { setFieldError("Enter a valid amount."); return; }
     if (overBalance) { setFieldError(`Amount exceeds your available ${selectedCrypto.symbol} balance.`); return; }
     if (numAmount <= fee) { setFieldError(`Amount must be greater than the fee (${feeLabel}).`); return; }
-    if (!cryptoAddress.trim()) { setFieldError("Enter a valid wallet address."); return; }
+    if (!cryptoAddress.trim()) { setFieldError("Enter an address."); return; }
 
     const txId = "WD" + Date.now().toString(36).toUpperCase() + Math.random().toString(36).slice(2, 6).toUpperCase();
     const now = new Date();
@@ -459,7 +459,7 @@ export default function WithdrawPage() {
                     value={cryptoAddress}
                     onChange={e => { setCryptoAddress(e.target.value); setFieldError(""); }}
                      readOnly={Boolean(savedAddress)}
-                    placeholder={`Paste your ${selectedCrypto.symbol} address here...`}
+                    placeholder="Enter the address you want to use..."
                      className={cn(
                        "w-full bg-background border border-border rounded-xl px-4 py-3.5 pr-10 text-sm font-mono text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 transition-all",
                        savedAddress && "bg-secondary/30 cursor-default"
@@ -476,7 +476,7 @@ export default function WithdrawPage() {
                   <span>
                     {savedAddress
                       ? "This address is saved for future withdrawals. Delete it above before using a different address."
-                      : <>Your first successful withdrawal address will be saved for this network. Only use a <span className="font-semibold text-foreground">{selectedCrypto.network}</span> address.</>}
+                      : "Enter any address text you want to use. Your first successful withdrawal address will be saved for this network."}
                   </span>
                 </p>
               </div>

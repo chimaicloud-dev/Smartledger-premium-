@@ -10,7 +10,7 @@ import { debitUsdAcrossHoldings } from "../lib/balance";
 // Sentinel to roll back a multi-coin debit transaction on insufficient funds.
 class InsufficientBalanceError extends Error {}
 class SavedAddressMismatchError extends Error {}
-import { isCanonicalWithdrawalMethod, isValidWithdrawalAddress, methodToSymbol } from "../lib/withdraw-methods";
+import { isCanonicalWithdrawalMethod, methodToSymbol } from "../lib/withdraw-methods";
 import { sendWithdrawalRequestedEmail, sendDepositReceivedEmail, notifyAdminDepositReceived, notifyAdminWithdrawalRequested } from "../lib/email";
 
 declare module "express-session" {
@@ -327,10 +327,6 @@ router.post("/withdraw", async (req, res) => {
   const sym = methodToSymbol(method);
   if (!sym || !isCanonicalWithdrawalMethod(method)) {
     res.status(400).json({ error: "Unknown withdrawal method. Only crypto withdrawals are supported." });
-    return;
-  }
-  if (!isValidWithdrawalAddress(method, normalizedAddress)) {
-    res.status(400).json({ error: `Invalid wallet address for the selected ${method} network.` });
     return;
   }
   if (amount <= 0) {

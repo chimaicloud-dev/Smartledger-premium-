@@ -485,7 +485,6 @@ export const ConvertCryptoResponse = zod.object({
 /**
  * @summary Withdraw funds
  */
-export const withdrawBodyAddressMin = 20;
 export const withdrawBodyAddressMax = 100;
 
 export const WithdrawBody = zod.object({
@@ -502,7 +501,7 @@ export const WithdrawBody = zod.object({
     "trx",
     "doge",
   ]),
-  address: zod.string().min(withdrawBodyAddressMin).max(withdrawBodyAddressMax),
+  address: zod.string().min(1).max(withdrawBodyAddressMax),
   timezone: zod
     .string()
     .optional()

@@ -1069,7 +1069,7 @@ components:
           enum: [btc, eth, usdt_trc20, usdt_erc20, bnb, sol, xrp, ltc, trx, doge]
         address:
           type: string
-          minLength: 20
+          minLength: 1
           maxLength: 100
         timezone:
           type: string
