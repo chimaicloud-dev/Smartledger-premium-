@@ -289,10 +289,8 @@ router.post("/forgot-password", async (req, res) => {
     // Build the reset URL exclusively from server-controlled configuration —
     // never from caller-supplied Origin / Referer headers (host-header injection risk).
     const frontendBase =
-      process.env.FRONTEND_URL?.replace(/\/+$/, "") ||
-      (process.env.REPLIT_DEV_DOMAIN
-        ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-        : "http://localhost:5173");
+      process.env.PUBLIC_APP_URL?.replace(/\/+$/, "") ||
+      "https://smartledger-premium.com";
 
     const resetUrl = `${frontendBase}/reset-password?token=${encodeURIComponent(token)}`;
     sendPasswordResetEmail(user.email, user.name, resetUrl);

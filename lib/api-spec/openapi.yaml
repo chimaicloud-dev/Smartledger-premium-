@@ -327,6 +327,62 @@ paths:
                 items:
                   $ref: "#/components/schemas/User"
 
+  /admin/emails/custom:
+    post:
+      operationId: sendAdminCustomEmail
+      tags: [admin]
+      summary: Send a custom email to one user or all users (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminCustomEmailInput"
+      responses:
+        "200":
+          description: Email delivery result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminCustomEmailResult"
+        "400":
+          description: Invalid email request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Target user not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/emails/jobs/{jobId}:
+    get:
+      operationId: getAdminCustomEmailJob
+      tags: [admin]
+      summary: Get custom email delivery progress (admin only)
+      parameters:
+        - in: path
+          name: jobId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Email delivery progress
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminCustomEmailResult"
+        "404":
+          description: Email job not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /admin/users/{id}:
     patch:
       operationId: updateAdminUser
@@ -843,6 +899,52 @@ components:
         - pendingWithdrawals
         - completedTransactions
         - totalVolumeUsd
+
+    AdminCustomEmailInput:
+      type: object
+      properties:
+        audience:
+          type: string
+          enum: [single, all]
+        userId:
+          type: integer
+          minimum: 1
+        subject:
+          type: string
+          minLength: 1
+          maxLength: 120
+        message:
+          type: string
+          minLength: 1
+          maxLength: 5000
+      required:
+        - audience
+        - subject
+        - message
+
+    AdminCustomEmailResult:
+      type: object
+      properties:
+        jobId:
+          type: integer
+        status:
+          type: string
+          enum: [queued, processing, completed, partial]
+        attempted:
+          type: integer
+        sent:
+          type: integer
+        failed:
+          type: integer
+        message:
+          type: string
+      required:
+        - jobId
+        - status
+        - attempted
+        - sent
+        - failed
+        - message
 
     AdminKycSubmission:
       allOf:

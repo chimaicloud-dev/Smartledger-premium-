@@ -7,6 +7,10 @@
  */
 
 export * from "./adminCreateRequest";
+export * from "./adminCustomEmailInput";
+export * from "./adminCustomEmailInputAudience";
+export * from "./adminCustomEmailResult";
+export * from "./adminCustomEmailResultStatus";
 export * from "./adminKycIdNumber";
 export * from "./adminKycSubmission";
 export * from "./adminStats";

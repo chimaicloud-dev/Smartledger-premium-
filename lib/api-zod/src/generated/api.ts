@@ -310,6 +310,46 @@ export const GetAdminUsersResponseItem = zod.object({
 export const GetAdminUsersResponse = zod.array(GetAdminUsersResponseItem);
 
 /**
+ * @summary Send a custom email to one user or all users (admin only)
+ */
+
+export const sendAdminCustomEmailBodySubjectMax = 120;
+
+export const sendAdminCustomEmailBodyMessageMax = 5000;
+
+export const SendAdminCustomEmailBody = zod.object({
+  audience: zod.enum(["single", "all"]),
+  userId: zod.number().min(1).optional(),
+  subject: zod.string().min(1).max(sendAdminCustomEmailBodySubjectMax),
+  message: zod.string().min(1).max(sendAdminCustomEmailBodyMessageMax),
+});
+
+export const SendAdminCustomEmailResponse = zod.object({
+  jobId: zod.number(),
+  status: zod.enum(["queued", "processing", "completed", "partial"]),
+  attempted: zod.number(),
+  sent: zod.number(),
+  failed: zod.number(),
+  message: zod.string(),
+});
+
+/**
+ * @summary Get custom email delivery progress (admin only)
+ */
+export const GetAdminCustomEmailJobParams = zod.object({
+  jobId: zod.coerce.number(),
+});
+
+export const GetAdminCustomEmailJobResponse = zod.object({
+  jobId: zod.number(),
+  status: zod.enum(["queued", "processing", "completed", "partial"]),
+  attempted: zod.number(),
+  sent: zod.number(),
+  failed: zod.number(),
+  message: zod.string(),
+});
+
+/**
  * @summary Update a user (admin only)
  */
 export const UpdateAdminUserParams = zod.object({

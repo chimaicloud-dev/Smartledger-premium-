@@ -7,6 +7,12 @@ import { methodToSymbol } from "../lib/withdraw-methods";
 import { COIN_INFO } from "../lib/coins";
 import { getPriceMap } from "./market";
 import { decryptKycIdNumber, maskKycIdNumber } from "../lib/kyc-id-crypto";
+import { SendAdminCustomEmailBody } from "@workspace/api-zod";
+import {
+  enqueueAdminEmailJob,
+  getAdminEmailJob,
+  startAdminEmailJob,
+} from "../lib/admin-email-queue";
 
 // Live market price with static fallback — avoids recording holdings at
 // stale COIN_INFO rates (e.g. BTC = $67,500).
@@ -83,6 +89,95 @@ router.get("/users", async (req, res) => {
       )
     : all;
   res.json(filtered.map(userToResponse));
+});
+
+router.post("/emails/custom", async (req, res) => {
+  const parsed = SendAdminCustomEmailBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid email details" });
+    return;
+  }
+
+  const audience = parsed.data.audience;
+  const customSubject = parsed.data.subject.trim();
+  const message = parsed.data.message.trim();
+  if (!customSubject || !message || /[\r\n]/.test(customSubject)) {
+    res.status(400).json({ error: "A valid subject and message are required" });
+    return;
+  }
+  if (audience === "single" && !parsed.data.userId) {
+    res.status(400).json({ error: "Select a user" });
+    return;
+  }
+
+  let targets: (typeof usersTable.$inferSelect)[];
+  if (audience === "single") {
+    targets = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.id, parsed.data.userId!))
+      .limit(1);
+    if (!targets.length) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+  } else {
+    targets = await db
+      .select()
+      .from(usersTable)
+      .orderBy(usersTable.id);
+  }
+
+  const adminUser = (req as any).adminUser as typeof usersTable.$inferSelect;
+  const jobId = await enqueueAdminEmailJob({
+    adminUserId: adminUser.id,
+    audience,
+    subject: customSubject,
+    message,
+    targets: targets.map((target) => ({
+      id: target.id,
+      email: target.email,
+      name: target.name,
+    })),
+  });
+  startAdminEmailJob(jobId, req.log);
+
+  req.log.info(
+    {
+      adminUserId: adminUser.id,
+      audience,
+      targetUserId: audience === "single" ? parsed.data.userId : undefined,
+      attempted: targets.length,
+      jobId,
+    },
+    "admin.custom_email.queued"
+  );
+
+  res.json({
+    jobId,
+    status: "queued",
+    attempted: targets.length,
+    sent: 0,
+    failed: 0,
+    message: `Queued for delivery to ${targets.length} recipient${targets.length === 1 ? "" : "s"}`,
+  });
+});
+
+router.get("/emails/jobs/:jobId", async (req, res) => {
+  const jobId = Number(req.params.jobId);
+  if (!Number.isInteger(jobId) || jobId <= 0) {
+    res.status(400).json({ error: "Invalid email job" });
+    return;
+  }
+  const result = await getAdminEmailJob(jobId);
+  if (!result) {
+    res.status(404).json({ error: "Email job not found" });
+    return;
+  }
+  if (result.status === "queued" || result.status === "processing") {
+    startAdminEmailJob(jobId, req.log);
+  }
+  res.json(result);
 });
 
 router.get("/users/:id/preview", async (req, res) => {

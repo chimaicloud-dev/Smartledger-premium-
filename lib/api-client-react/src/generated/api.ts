@@ -18,6 +18,8 @@ import type {
 
 import type {
   AdminCreateRequest,
+  AdminCustomEmailInput,
+  AdminCustomEmailResult,
   AdminKycIdNumber,
   AdminKycSubmission,
   AdminStats,
@@ -1350,6 +1352,184 @@ export function useGetAdminUsers<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetAdminUsersQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Send a custom email to one user or all users (admin only)
+ */
+export const getSendAdminCustomEmailUrl = () => {
+  return `/api/admin/emails/custom`;
+};
+
+export const sendAdminCustomEmail = async (
+  adminCustomEmailInput: AdminCustomEmailInput,
+  options?: RequestInit,
+): Promise<AdminCustomEmailResult> => {
+  return customFetch<AdminCustomEmailResult>(getSendAdminCustomEmailUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(adminCustomEmailInput),
+  });
+};
+
+export const getSendAdminCustomEmailMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendAdminCustomEmail>>,
+    TError,
+    { data: BodyType<AdminCustomEmailInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof sendAdminCustomEmail>>,
+  TError,
+  { data: BodyType<AdminCustomEmailInput> },
+  TContext
+> => {
+  const mutationKey = ["sendAdminCustomEmail"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof sendAdminCustomEmail>>,
+    { data: BodyType<AdminCustomEmailInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return sendAdminCustomEmail(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SendAdminCustomEmailMutationResult = NonNullable<
+  Awaited<ReturnType<typeof sendAdminCustomEmail>>
+>;
+export type SendAdminCustomEmailMutationBody = BodyType<AdminCustomEmailInput>;
+export type SendAdminCustomEmailMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Send a custom email to one user or all users (admin only)
+ */
+export const useSendAdminCustomEmail = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendAdminCustomEmail>>,
+    TError,
+    { data: BodyType<AdminCustomEmailInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof sendAdminCustomEmail>>,
+  TError,
+  { data: BodyType<AdminCustomEmailInput> },
+  TContext
+> => {
+  return useMutation(getSendAdminCustomEmailMutationOptions(options));
+};
+
+/**
+ * @summary Get custom email delivery progress (admin only)
+ */
+export const getGetAdminCustomEmailJobUrl = (jobId: number) => {
+  return `/api/admin/emails/jobs/${jobId}`;
+};
+
+export const getAdminCustomEmailJob = async (
+  jobId: number,
+  options?: RequestInit,
+): Promise<AdminCustomEmailResult> => {
+  return customFetch<AdminCustomEmailResult>(
+    getGetAdminCustomEmailJobUrl(jobId),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetAdminCustomEmailJobQueryKey = (jobId: number) => {
+  return [`/api/admin/emails/jobs/${jobId}`] as const;
+};
+
+export const getGetAdminCustomEmailJobQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAdminCustomEmailJob>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  jobId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAdminCustomEmailJob>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetAdminCustomEmailJobQueryKey(jobId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getAdminCustomEmailJob>>
+  > = ({ signal }) =>
+    getAdminCustomEmailJob(jobId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!jobId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAdminCustomEmailJob>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetAdminCustomEmailJobQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAdminCustomEmailJob>>
+>;
+export type GetAdminCustomEmailJobQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Get custom email delivery progress (admin only)
+ */
+
+export function useGetAdminCustomEmailJob<
+  TData = Awaited<ReturnType<typeof getAdminCustomEmailJob>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  jobId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAdminCustomEmailJob>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetAdminCustomEmailJobQueryOptions(jobId, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

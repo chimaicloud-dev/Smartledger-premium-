@@ -25,6 +25,9 @@ function getTransporter(): Transporter | null {
       port,
       secure: port === 465,
       auth: { user: SMTP_USER, pass },
+      connectionTimeout: 5_000,
+      greetingTimeout: 5_000,
+      socketTimeout: 6_000,
     });
   }
   return transporter;
@@ -38,6 +41,10 @@ function esc(s: string): string {
 
 function escAttr(s: string): string {
   return esc(s).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+function plainTextToHtml(s: string): string {
+  return esc(s).replace(/\r?\n/g, "<br>");
 }
 
 function subject(title: string): string {
@@ -74,10 +81,9 @@ export function renderEmail(opts: {
     : "";
 
   return `<!DOCTYPE html>
-<html lang="en" translate="no">
+<html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="google" content="notranslate">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light">
 <meta name="supported-color-schemes" content="light">
@@ -158,7 +164,7 @@ export function renderEmail(opts: {
 const SINGLE_EMAIL_RE = /^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/;
 
 const EMAIL_MAX_ATTEMPTS = 2; // 1 initial attempt + 1 retry
-const EMAIL_RETRY_DELAY_MS = 3_000;
+const EMAIL_RETRY_DELAY_MS = 1_000;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -171,13 +177,11 @@ function sleep(ms: number): Promise<void> {
 export async function sendEmail(to: string, subject: string, html: string): Promise<void> {
   const recipient = to.trim();
   if (!SINGLE_EMAIL_RE.test(recipient)) {
-    console.warn("[email] invalid recipient address; skipping email:", subject);
-    return;
+    throw new Error("Invalid recipient address");
   }
   const t = getTransporter();
   if (!t) {
-    console.warn("[email] SMTP_HOST / SMTP_PASSWORD not set; skipping email:", subject);
-    return;
+    throw new Error("SMTP is not configured");
   }
 
   let lastErr: unknown;
@@ -523,4 +527,19 @@ export function sendKycStatusEmail(to: string, name: string, approved: boolean):
   });
   const emailSubject = subject(approved ? "Identity verified" : "Verification rejected");
   dispatch(sendEmail(to, emailSubject, html), emailSubject, to);
+}
+
+export async function sendCustomAdminEmail(
+  to: string,
+  name: string,
+  customSubject: string,
+  message: string
+): Promise<void> {
+  const cleanSubject = customSubject.trim();
+  const html = renderEmail({
+    title: cleanSubject,
+    recipientName: name,
+    intro: plainTextToHtml(message.trim()),
+  });
+  await sendEmail(to, subject(cleanSubject), html);
 }

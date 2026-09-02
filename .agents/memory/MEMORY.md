@@ -1,3 +1,4 @@
 - [Deploy & push workflow](deploy-push.md) — code ships only via git push to GitHub (Vercel auto-deploys); dev DB schema changes must be mirrored on the prod DB separately.
 - [Money-safety rules](money-safety.md) — all balance changes use atomic conditional UPDATEs inside DB transactions; investment payouts claim periods compare-and-set before crediting.
 - [Withdrawal destinations](withdrawal-destinations.md) — save one destination per canonical network on first withdrawal; changing it requires user deletion first.
+- [Admin email delivery](admin-email-delivery.md) — broadcasts use persistent recipient jobs with bounded self-chaining; delivery totals come from recipient states.

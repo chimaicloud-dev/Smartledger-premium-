@@ -30,6 +30,8 @@ import {
   Phone,
   MapPin,
   CalendarDays,
+  Mail,
+  Send,
 } from "lucide-react";
 import {
   useGetAdminStats,
@@ -45,11 +47,13 @@ import {
   useApproveAdminKyc,
   useRejectAdminKyc,
   useAdminCreateAdmin,
+  useSendAdminCustomEmail,
+  useGetAdminCustomEmailJob,
 } from "@workspace/api-client-react";
-import type { User, AdminTransaction, AdminUserPreview } from "@workspace/api-client-react";
+import type { User, AdminTransaction, AdminUserPreview, AdminCustomEmailInputAudience, AdminCustomEmailResult } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 
-type Tab = "overview" | "approvals" | "kyc" | "users" | "transactions" | "settings";
+type Tab = "overview" | "approvals" | "kyc" | "users" | "transactions" | "email" | "settings";
 
 export default function AdminPage() {
   const { user, isLoading } = useAuth();
@@ -99,6 +103,7 @@ export default function AdminPage() {
             { id: "kyc", label: "KYC Queue", icon: FileCheck },
             { id: "users", label: "Users", icon: Users },
             { id: "transactions", label: "Transactions", icon: TrendingUp },
+            { id: "email", label: "Emails", icon: Mail },
             { id: "settings", label: "Settings", icon: Settings },
           ].map((t) => (
             <button
@@ -122,6 +127,7 @@ export default function AdminPage() {
         {tab === "kyc" && <KycTab />}
         {tab === "users" && <UsersTab />}
         {tab === "transactions" && <TransactionsTab />}
+        {tab === "email" && <EmailTab />}
         {tab === "settings" && <SettingsTab />}
       </div>
     </DashboardLayout>
@@ -1176,6 +1182,336 @@ function TransactionsTab() {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function EmailTab() {
+  const [audience, setAudience] = useState<AdminCustomEmailInputAudience>("single");
+  const [userId, setUserId] = useState<number | "">("");
+  const [subject, setSubject] = useState("");
+  const [message, setMessage] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isConfirmingBroadcast, setIsConfirmingBroadcast] = useState(false);
+  const [result, setResult] = useState<AdminCustomEmailResult | null>(null);
+  const [jobId, setJobId] = useState<number | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const { data: users, isLoading } = useGetAdminUsers({});
+  const sendEmail = useSendAdminCustomEmail();
+  const { data: jobProgress } = useGetAdminCustomEmailJob(jobId ?? 0, {
+    query: {
+      queryKey: ["/api/admin/emails/jobs", jobId],
+      enabled: Boolean(jobId),
+      refetchInterval: (query) => {
+        const status = query.state.data?.status;
+        return status === "queued" || status === "processing" ? 2_000 : false;
+      },
+    },
+  });
+
+  useEffect(() => {
+    if (!jobProgress) return;
+    setResult(jobProgress);
+    if (jobProgress.status === "completed" || jobProgress.status === "partial") {
+      setJobId(null);
+    }
+  }, [jobProgress]);
+
+  const allUsers = useMemo(() => users || [], [users]);
+
+  const filteredUsers = useMemo(() => {
+    if (!searchQuery) return allUsers.slice(0, 100);
+    const q = searchQuery.toLowerCase();
+    return allUsers
+      .filter(
+        (u) =>
+          u.email.toLowerCase().includes(q) ||
+          u.name.toLowerCase().includes(q) ||
+          u.id.toString() === q
+      )
+      .slice(0, 100);
+  }, [allUsers, searchQuery]);
+
+  const handleSend = async () => {
+    setErrorMsg(null);
+    setResult(null);
+
+    if (!subject.trim()) {
+      setErrorMsg("Subject is required.");
+      return;
+    }
+    if (!message.trim()) {
+      setErrorMsg("Message body is required.");
+      return;
+    }
+    if (audience === "single" && !userId) {
+      setErrorMsg("Please select a recipient.");
+      return;
+    }
+
+    try {
+      const res = await sendEmail.mutateAsync({
+        data: {
+          audience,
+          userId: audience === "single" ? Number(userId) : undefined,
+          subject,
+          message,
+        },
+      });
+      setResult(res);
+      setJobId(res.jobId);
+      setSubject("");
+      setMessage("");
+      setUserId("");
+      setAudience("single");
+      setIsConfirmingBroadcast(false);
+    } catch (err) {
+      setErrorMsg(apiErrorMessage(err, "Failed to send email"));
+      setIsConfirmingBroadcast(false);
+    }
+  };
+
+  if (isLoading) {
+    return <div className="text-muted-foreground text-sm">Loading users...</div>;
+  }
+
+  return (
+    <div className="max-w-3xl space-y-6">
+      {result && (
+        <div className={cn(
+          "p-4 rounded-xl border",
+          result.status === "queued" || result.status === "processing"
+            ? "bg-blue-500/10 border-blue-500/30"
+            : result.failed === 0
+            ? "bg-green-500/10 border-green-500/30"
+            : result.sent === 0
+              ? "bg-red-500/10 border-red-500/30"
+              : "bg-amber-500/10 border-amber-500/30"
+        )}>
+          <div className="flex items-start gap-3">
+            {result.status === "queued" || result.status === "processing" ? (
+              <RefreshCw className="w-5 h-5 text-blue-400 shrink-0 mt-0.5 animate-spin" />
+            ) : result.failed === 0 ? (
+              <CheckCircle2 className="w-5 h-5 text-green-400 shrink-0 mt-0.5" />
+            ) : result.sent === 0 ? (
+              <XCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+            ) : (
+              <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+            )}
+            <div>
+              <h3 className={cn(
+                "font-semibold",
+                result.status === "queued" || result.status === "processing"
+                  ? "text-blue-300"
+                  : result.failed === 0
+                    ? "text-green-300"
+                    : result.sent === 0
+                      ? "text-red-300"
+                      : "text-amber-300"
+              )}>
+                {result.status === "queued" || result.status === "processing" ? "Delivery Progress" : "Delivery Summary"}
+              </h3>
+              <p className={cn(
+                "text-sm mt-1",
+                result.status === "queued" || result.status === "processing"
+                  ? "text-blue-200/80"
+                  : result.failed === 0
+                    ? "text-green-200/80"
+                    : result.sent === 0
+                      ? "text-red-200/80"
+                      : "text-amber-200/80"
+              )}>
+                {result.message}
+              </p>
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                <div className="p-2 rounded bg-background/50 border border-green-500/20 text-center">
+                  <div className="text-[10px] text-green-400/80 uppercase tracking-wide">Attempted</div>
+                  <div className="font-mono text-lg text-green-100">{result.attempted}</div>
+                </div>
+                <div className="p-2 rounded bg-background/50 border border-green-500/20 text-center">
+                  <div className="text-[10px] text-green-400/80 uppercase tracking-wide">Sent</div>
+                  <div className="font-mono text-lg text-green-100">{result.sent}</div>
+                </div>
+                <div className="p-2 rounded bg-background/50 border border-red-500/20 text-center">
+                  <div className="text-[10px] text-red-400/80 uppercase tracking-wide">Failed</div>
+                  <div className="font-mono text-lg text-red-300">{result.failed}</div>
+                </div>
+              </div>
+              <button
+                onClick={() => setResult(null)}
+                className="mt-3 text-xs font-medium text-muted-foreground hover:text-foreground underline"
+              >
+                Compose new message
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {errorMsg && (
+        <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30 flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+          <div className="text-sm text-red-300">{errorMsg}</div>
+        </div>
+      )}
+
+      <div className="rounded-xl bg-card border border-border p-4 md:p-6">
+        <div className="flex items-center gap-2 mb-1">
+          <Mail className="w-5 h-5 text-primary" />
+          <h2 className="text-lg font-display font-bold">Custom Customer Email</h2>
+        </div>
+        <p className="text-sm text-muted-foreground mb-6">
+          Send direct communications to individual customers or broadcast to all users.
+          Messages may be automatically translated by the recipient's mail client depending on their regional settings.
+        </p>
+
+        <div className="space-y-5">
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 block">
+              Audience
+            </label>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <label className={cn(
+                "flex-1 p-3 rounded-lg border cursor-pointer transition-colors relative flex items-start gap-3",
+                audience === "single" ? "bg-primary/10 border-primary" : "bg-secondary/30 border-border hover:border-primary/50"
+              )}>
+                <input
+                  type="radio"
+                  name="audience"
+                  value="single"
+                  checked={audience === "single"}
+                  onChange={() => { setAudience("single"); setIsConfirmingBroadcast(false); }}
+                  className="mt-1"
+                />
+                <div>
+                  <div className="font-semibold text-sm">Specific Customer</div>
+                  <div className="text-xs text-muted-foreground">Send to a single user</div>
+                </div>
+              </label>
+
+              <label className={cn(
+                "flex-1 p-3 rounded-lg border cursor-pointer transition-colors relative flex items-start gap-3",
+                audience === "all" ? "bg-amber-500/10 border-amber-500/50" : "bg-secondary/30 border-border hover:border-amber-500/30"
+              )}>
+                <input
+                  type="radio"
+                  name="audience"
+                  value="all"
+                  checked={audience === "all"}
+                  onChange={() => { setAudience("all"); setUserId(""); }}
+                  className="mt-1"
+                />
+                <div>
+                  <div className="font-semibold text-sm">All Users</div>
+                  <div className="text-xs text-muted-foreground">Broadcast to {allUsers.length} users</div>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          {audience === "single" && (
+            <div className="p-4 rounded-xl bg-secondary/20 border border-border space-y-3">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
+                Select Recipient
+              </label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by name, email, or ID..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <select
+                value={userId}
+                onChange={(e) => setUserId(e.target.value ? Number(e.target.value) : "")}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              >
+                <option value="">-- Choose a user --</option>
+                {filteredUsers.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name} ({u.email}) - ID: #{u.id}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 block">
+              Subject Line
+            </label>
+            <Input
+              placeholder="e.g. Important update regarding your account"
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              disabled={isConfirmingBroadcast || sendEmail.isPending}
+              maxLength={120}
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 block">
+              Message Body
+            </label>
+            <textarea
+              className="flex min-h-[200px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              placeholder="Type your message here. Plain text formatting is supported..."
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              disabled={isConfirmingBroadcast || sendEmail.isPending}
+              maxLength={5000}
+            />
+            <div className="text-[10px] text-muted-foreground mt-2 text-right">
+              {message.length}/5000 characters
+            </div>
+          </div>
+
+          {audience === "all" && isConfirmingBroadcast ? (
+            <div className="p-5 rounded-xl bg-amber-500/10 border border-amber-500/30">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                <div>
+                  <h3 className="font-bold text-amber-300">Confirm Broadcast</h3>
+                  <p className="text-sm text-amber-200/80 mt-1">
+                    You are about to send this email to <strong>all {allUsers.length} users</strong>.
+                    This action cannot be undone. Are you absolutely sure?
+                  </p>
+                  <div className="flex items-center gap-3 mt-4">
+                    <Button
+                      variant="destructive"
+                      onClick={handleSend}
+                      disabled={sendEmail.isPending}
+                    >
+                      {sendEmail.isPending ? "Sending..." : "Yes, send to everyone"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setIsConfirmingBroadcast(false)}
+                      disabled={sendEmail.isPending}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-end gap-3 pt-4 border-t border-border">
+              <Button
+                onClick={audience === "all" ? () => setIsConfirmingBroadcast(true) : handleSend}
+                disabled={sendEmail.isPending}
+                className="w-full sm:w-auto"
+              >
+                <Send className="w-4 h-4 mr-2" />
+                {sendEmail.isPending ? "Sending..." : audience === "all" ? "Review Broadcast" : "Send Email"}
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

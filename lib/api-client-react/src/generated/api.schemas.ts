@@ -84,6 +84,49 @@ export interface AdminStats {
   totalVolumeUsd: number;
 }
 
+export type AdminCustomEmailInputAudience =
+  (typeof AdminCustomEmailInputAudience)[keyof typeof AdminCustomEmailInputAudience];
+
+export const AdminCustomEmailInputAudience = {
+  single: "single",
+  all: "all",
+} as const;
+
+export interface AdminCustomEmailInput {
+  audience: AdminCustomEmailInputAudience;
+  /** @minimum 1 */
+  userId?: number;
+  /**
+   * @minLength 1
+   * @maxLength 120
+   */
+  subject: string;
+  /**
+   * @minLength 1
+   * @maxLength 5000
+   */
+  message: string;
+}
+
+export type AdminCustomEmailResultStatus =
+  (typeof AdminCustomEmailResultStatus)[keyof typeof AdminCustomEmailResultStatus];
+
+export const AdminCustomEmailResultStatus = {
+  queued: "queued",
+  processing: "processing",
+  completed: "completed",
+  partial: "partial",
+} as const;
+
+export interface AdminCustomEmailResult {
+  jobId: number;
+  status: AdminCustomEmailResultStatus;
+  attempted: number;
+  sent: number;
+  failed: number;
+  message: string;
+}
+
 export type AdminKycSubmission = User & {
   /** @nullable */
   phone: string | null;
