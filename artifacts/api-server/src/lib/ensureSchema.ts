@@ -38,6 +38,11 @@ export async function ensureSchema(log: typeof Logger): Promise<void> {
       )
     `);
     await pool.query(`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "timezone" text`);
+    await pool.query(`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "kyc_full_name" text`);
+    await pool.query(`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "kyc_date_of_birth" text`);
+    await pool.query(`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "kyc_country" text`);
+    await pool.query(`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "kyc_id_number" text`);
+    await pool.query(`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "kyc_submitted_at" timestamp`);
     log.info("schema.ensured");
   } catch (err) {
     log.error({ err }, "schema.ensure_failed");

@@ -62,8 +62,8 @@ function KycModal({ onClose }: { onClose: () => void }) {
                 <Check className="w-8 h-8 text-success" />
               </div>
               <div>
-                <h3 className="text-xl font-bold text-foreground">Verification Complete</h3>
-                <p className="text-muted-foreground text-sm mt-1">Your account is now fully verified.</p>
+                <h3 className="text-xl font-bold text-foreground">Verification Submitted</h3>
+                <p className="text-muted-foreground text-sm mt-1">Your details are awaiting admin review.</p>
               </div>
             </div>
           ) : (
@@ -93,7 +93,7 @@ function KycModal({ onClose }: { onClose: () => void }) {
                 {mutation.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Verifying...</> : "Submit Verification"}
               </Button>
               <p className="text-[11px] text-muted-foreground text-center">
-                Your information is encrypted and used only for identity verification.
+                Your information is used only for identity verification and is visible to authorized admins.
               </p>
             </form>
           )}

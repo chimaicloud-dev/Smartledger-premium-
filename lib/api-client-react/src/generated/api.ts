@@ -18,6 +18,8 @@ import type {
 
 import type {
   AdminCreateRequest,
+  AdminKycIdNumber,
+  AdminKycSubmission,
   AdminStats,
   AdminTransaction,
   AdminUserPreview,
@@ -1891,8 +1893,8 @@ export const getGetAdminKycQueueUrl = () => {
 
 export const getAdminKycQueue = async (
   options?: RequestInit,
-): Promise<User[]> => {
-  return customFetch<User[]>(getGetAdminKycQueueUrl(), {
+): Promise<AdminKycSubmission[]> => {
+  return customFetch<AdminKycSubmission[]>(getGetAdminKycQueueUrl(), {
     ...options,
     method: "GET",
   });
@@ -1949,6 +1951,95 @@ export function useGetAdminKycQueue<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetAdminKycQueueQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Reveal a user's encrypted KYC ID number for manual review
+ */
+export const getGetAdminKycIdNumberUrl = (userId: number) => {
+  return `/api/admin/kyc/${userId}/id-number`;
+};
+
+export const getAdminKycIdNumber = async (
+  userId: number,
+  options?: RequestInit,
+): Promise<AdminKycIdNumber> => {
+  return customFetch<AdminKycIdNumber>(getGetAdminKycIdNumberUrl(userId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetAdminKycIdNumberQueryKey = (userId: number) => {
+  return [`/api/admin/kyc/${userId}/id-number`] as const;
+};
+
+export const getGetAdminKycIdNumberQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAdminKycIdNumber>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  userId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAdminKycIdNumber>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetAdminKycIdNumberQueryKey(userId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getAdminKycIdNumber>>
+  > = ({ signal }) =>
+    getAdminKycIdNumber(userId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!userId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAdminKycIdNumber>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetAdminKycIdNumberQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAdminKycIdNumber>>
+>;
+export type GetAdminKycIdNumberQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Reveal a user's encrypted KYC ID number for manual review
+ */
+
+export function useGetAdminKycIdNumber<
+  TData = Awaited<ReturnType<typeof getAdminKycIdNumber>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  userId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAdminKycIdNumber>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetAdminKycIdNumberQueryOptions(userId, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

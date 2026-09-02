@@ -41,6 +41,7 @@ import {
   useApproveAdminTransaction,
   useRejectAdminTransaction,
   useGetAdminKycQueue,
+  getAdminKycIdNumber,
   useApproveAdminKyc,
   useRejectAdminKyc,
   useAdminCreateAdmin,
@@ -132,7 +133,7 @@ function StatCard({ icon: Icon, label, value, hint, accent, onClick }: {
 }) {
   return (
     <div
-      className={cn("p-4 rounded-xl bg-card border border-border", onClick && "cursor-pointer hover:border-amber-500/50 transition-colors")}
+      className={cn("h-full min-w-0 p-4 rounded-xl bg-card border border-border", onClick && "cursor-pointer hover:border-amber-500/50 transition-colors")}
       onClick={onClick}
     >
       <div className="flex items-center justify-between mb-2">
@@ -141,8 +142,8 @@ function StatCard({ icon: Icon, label, value, hint, accent, onClick }: {
         </div>
         {hint && <span className="text-[10px] text-muted-foreground uppercase tracking-wider">{hint}</span>}
       </div>
-      <div className="text-xs text-muted-foreground mb-1">{label}</div>
-      <div className="text-xl md:text-2xl font-display font-bold">{value}</div>
+      <div className="text-xs text-muted-foreground mb-1 leading-snug">{label}</div>
+      <div className="text-xl md:text-2xl font-display font-bold break-words">{value}</div>
     </div>
   );
 }
@@ -157,13 +158,13 @@ function OverviewTab({ onChangeTab }: { onChangeTab: (t: Tab) => void }) {
   }
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <StatCard icon={Users} label="Total Users" value={String(stats.totalUsers)} hint={`${stats.totalAdmins} admin`} />
         <StatCard icon={ShieldCheck} label="KYC Verified" value={String(stats.verifiedUsers)} />
         <StatCard icon={Wallet} label="Total Crypto" value={`$${stats.totalCryptoValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}`} />
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
         <StatCard icon={Clock} label="Pending Deposits" value={String(stats.pendingDeposits)} accent="bg-amber-500/15" onClick={() => onChangeTab("approvals")} />
         <StatCard icon={Clock} label="Pending Withdrawals" value={String(stats.pendingWithdrawals)} accent="bg-amber-500/15" onClick={() => onChangeTab("approvals")} />
         <StatCard icon={FileCheck} label="Pending KYC" value={String(stats.totalUsers - stats.verifiedUsers - stats.suspendedUsers)} accent="bg-amber-500/15" onClick={() => onChangeTab("kyc")} />
@@ -319,6 +320,53 @@ function ApprovalsTab() {
   );
 }
 
+function formatDateOnly(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return value;
+  return new Date(year, month - 1, day).toLocaleDateString();
+}
+
+function KycIdField({ userId, masked }: { userId: number; masked: string | null }) {
+  const [revealed, setRevealed] = useState<string | null>(null);
+  const [isRevealing, setIsRevealing] = useState(false);
+  const [revealError, setRevealError] = useState("");
+
+  const reveal = async () => {
+    setIsRevealing(true);
+    setRevealError("");
+    try {
+      const result = await getAdminKycIdNumber(userId);
+      setRevealed(result.idNumber);
+    } catch (error) {
+      setRevealError(apiErrorMessage(error, "Unable to reveal ID"));
+    } finally {
+      setIsRevealing(false);
+    }
+  };
+
+  return (
+    <div className="p-3 rounded-lg bg-secondary/50 border border-border min-w-0">
+      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Government ID number</div>
+      <div className="flex items-center justify-between gap-2 mt-1">
+        <div className={cn("text-sm font-medium break-all", !masked && "text-muted-foreground italic")}>
+          {revealed || masked || "Not available — submitted before details were saved"}
+        </div>
+        {masked && masked !== "Unavailable" && !revealed && (
+          <button
+            type="button"
+            onClick={reveal}
+            disabled={isRevealing}
+            className="text-xs text-amber-300 hover:text-amber-200 disabled:opacity-50 shrink-0"
+          >
+            {isRevealing ? "Revealing..." : "Reveal ID"}
+          </button>
+        )}
+      </div>
+      {revealError && <div className="text-xs text-red-400 mt-1">{revealError}</div>}
+    </div>
+  );
+}
+
 function KycTab() {
   const queryClient = useQueryClient();
   const { data: users, isLoading, refetch } = useGetAdminKycQueue();
@@ -371,10 +419,24 @@ function KycTab() {
                 </div>
               </div>
             </div>
-            <div className="p-3 rounded-lg bg-secondary/50 border border-border text-xs text-muted-foreground mb-3">
-              KYC submitted — waiting for manual review. Use the buttons below to approve or reject this user's identity verification.
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 mb-3">
+              {[
+                ["KYC full name", u.kycFullName],
+                ["Phone number", u.phone],
+                ["KYC country", u.kycCountry],
+                ["Date of birth", u.kycDateOfBirth ? formatDateOnly(u.kycDateOfBirth) : null],
+                ["Submitted", u.kycSubmittedAt ? new Date(u.kycSubmittedAt).toLocaleString() : null],
+              ].map(([label, value]) => (
+                <div key={label} className="p-3 rounded-lg bg-secondary/50 border border-border min-w-0">
+                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
+                  <div className={cn("text-sm font-medium mt-1 break-all", !value && "text-muted-foreground italic")}>
+                    {value || "Not available — submitted before details were saved"}
+                  </div>
+                </div>
+              ))}
+              <KycIdField userId={u.id} masked={u.kycIdNumberMasked} />
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <Button
                 size="sm"
                 variant="success"
@@ -505,11 +567,6 @@ function UserPreviewModal({ user, onClose }: { user: User; onClose: () => void }
 function UserPreviewContent({ preview }: { preview: AdminUserPreview }) {
   const formatMoney = (value: number) =>
     new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(value);
-  const formatDateOnly = (value: string) => {
-    const [year, month, day] = value.split("-").map(Number);
-    if (!year || !month || !day) return value;
-    return new Date(year, month - 1, day).toLocaleDateString();
-  };
   const detailItems = [
     { label: "Email", value: preview.email },
     { label: "Phone number", value: preview.phone || "Not provided", icon: Phone },

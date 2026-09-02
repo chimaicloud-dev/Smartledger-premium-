@@ -6,6 +6,7 @@ import { requireAdmin } from "../lib/admin";
 import { methodToSymbol } from "../lib/withdraw-methods";
 import { COIN_INFO } from "../lib/coins";
 import { getPriceMap } from "./market";
+import { decryptKycIdNumber, maskKycIdNumber } from "../lib/kyc-id-crypto";
 
 // Live market price with static fallback — avoids recording holdings at
 // stale COIN_INFO rates (e.g. BTC = $67,500).
@@ -447,7 +448,50 @@ router.get("/kyc", async (_req, res) => {
     .from(usersTable)
     .where(eq(usersTable.kycStatus, "pending"))
     .orderBy(desc(usersTable.createdAt));
-  res.json(users.map(userToResponse));
+  res.json(users.map((user) => {
+    let kycIdNumberMasked: string | null = null;
+    if (user.kycIdNumber) {
+      try {
+        kycIdNumberMasked = maskKycIdNumber(decryptKycIdNumber(user.kycIdNumber));
+      } catch {
+        kycIdNumberMasked = "Unavailable";
+      }
+    }
+    return {
+      ...userToResponse(user),
+      phone: user.phone,
+      kycFullName: user.kycFullName,
+      kycDateOfBirth: user.kycDateOfBirth,
+      kycCountry: user.kycCountry,
+      kycIdNumberMasked,
+      kycSubmittedAt: user.kycSubmittedAt?.toISOString() ?? null,
+    };
+  }));
+});
+
+router.get("/kyc/:userId/id-number", async (req, res) => {
+  const userId = Number(req.params.userId);
+  if (!Number.isInteger(userId) || userId <= 0) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const [user] = await db.select({ kycIdNumber: usersTable.kycIdNumber }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  if (!user.kycIdNumber) {
+    res.status(404).json({ error: "No saved KYC ID number" });
+    return;
+  }
+  try {
+    const adminUser = (req as any).adminUser as typeof usersTable.$inferSelect;
+    const idNumber = decryptKycIdNumber(user.kycIdNumber);
+    req.log.warn({ adminUserId: adminUser.id, reviewedUserId: userId }, "admin.kyc.id_number.revealed");
+    res.json({ idNumber });
+  } catch {
+    res.status(500).json({ error: "KYC ID number could not be decrypted" });
+  }
 });
 
 router.post("/kyc/:userId/approve", async (req, res) => {
@@ -457,7 +501,7 @@ router.post("/kyc/:userId/approve", async (req, res) => {
   if (!user) { res.status(404).json({ error: "User not found" }); return; }
   const [updated] = await db
     .update(usersTable)
-    .set({ kycStatus: "verified" })
+    .set({ kycStatus: "verified", kycIdNumber: null })
     .where(eq(usersTable.id, userId))
     .returning();
   req.log.info({ userId }, "admin.kyc.approved");
@@ -472,7 +516,7 @@ router.post("/kyc/:userId/reject", async (req, res) => {
   if (!user) { res.status(404).json({ error: "User not found" }); return; }
   const [updated] = await db
     .update(usersTable)
-    .set({ kycStatus: "rejected" })
+    .set({ kycStatus: "rejected", kycIdNumber: null })
     .where(eq(usersTable.id, userId))
     .returning();
   req.log.info({ userId }, "admin.kyc.rejected");

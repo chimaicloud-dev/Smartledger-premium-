@@ -17,14 +17,6 @@ export interface MessageResponse {
   message: string;
 }
 
-export type RegisterRequestExperience =
-  (typeof RegisterRequestExperience)[keyof typeof RegisterRequestExperience];
-
-export const RegisterRequestExperience = {
-  beginner: "beginner",
-  experienced: "experienced",
-} as const;
-
 export interface RegisterRequest {
   email: string;
   password: string;
@@ -32,7 +24,6 @@ export interface RegisterRequest {
   phone: string;
   country: string;
   dateOfBirth: string;
-  experience: RegisterRequestExperience;
 }
 
 export interface LoginRequest {
@@ -91,6 +82,25 @@ export interface AdminStats {
   pendingWithdrawals: number;
   completedTransactions: number;
   totalVolumeUsd: number;
+}
+
+export type AdminKycSubmission = User & {
+  /** @nullable */
+  phone: string | null;
+  /** @nullable */
+  kycFullName: string | null;
+  /** @nullable */
+  kycDateOfBirth: string | null;
+  /** @nullable */
+  kycCountry: string | null;
+  /** @nullable */
+  kycIdNumberMasked: string | null;
+  /** @nullable */
+  kycSubmittedAt: string | null;
+};
+
+export interface AdminKycIdNumber {
+  idNumber: string;
 }
 
 export interface AdminTransaction {
@@ -205,9 +215,22 @@ export interface ChangePasswordRequest {
 }
 
 export interface KycSubmitRequest {
+  /**
+   * @minLength 2
+   * @maxLength 200
+   */
   fullName: string;
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
   dateOfBirth: string;
+  /**
+   * @minLength 2
+   * @maxLength 100
+   */
   country: string;
+  /**
+   * @minLength 2
+   * @maxLength 200
+   */
   idNumber: string;
 }
 

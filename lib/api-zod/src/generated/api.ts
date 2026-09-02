@@ -24,7 +24,6 @@ export const RegisterBody = zod.object({
   phone: zod.string(),
   country: zod.string(),
   dateOfBirth: zod.string(),
-  experience: zod.enum(["beginner", "experienced"]),
 });
 
 /**
@@ -87,11 +86,32 @@ export const ChangePasswordResponse = zod.object({
 /**
  * @summary Submit KYC verification
  */
+export const submitKycBodyFullNameMin = 2;
+export const submitKycBodyFullNameMax = 200;
+
+export const submitKycBodyDateOfBirthRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+export const submitKycBodyCountryMin = 2;
+export const submitKycBodyCountryMax = 100;
+
+export const submitKycBodyIdNumberMin = 2;
+export const submitKycBodyIdNumberMax = 200;
+
 export const SubmitKycBody = zod.object({
-  fullName: zod.string(),
-  dateOfBirth: zod.string(),
-  country: zod.string(),
-  idNumber: zod.string(),
+  fullName: zod
+    .string()
+    .min(submitKycBodyFullNameMin)
+    .max(submitKycBodyFullNameMax),
+  dateOfBirth: zod.string().regex(submitKycBodyDateOfBirthRegExp),
+  country: zod
+    .string()
+    .min(submitKycBodyCountryMin)
+    .max(submitKycBodyCountryMax),
+  idNumber: zod
+    .string()
+    .min(submitKycBodyIdNumberMin)
+    .max(submitKycBodyIdNumberMax),
 });
 
 export const SubmitKycResponse = zod.object({
@@ -453,18 +473,40 @@ export const RejectAdminTransactionResponse = zod.object({
 /**
  * @summary List users with pending KYC (admin only)
  */
-export const GetAdminKycQueueResponseItem = zod.object({
-  id: zod.number(),
-  email: zod.string(),
-  name: zod.string(),
-  experience: zod.string(),
-  usdBalance: zod.number(),
-  kycStatus: zod.enum(["unverified", "pending", "verified", "rejected"]),
-  role: zod.enum(["user", "admin"]),
-  status: zod.enum(["active", "suspended"]),
-  createdAt: zod.string(),
-});
+export const GetAdminKycQueueResponseItem = zod
+  .object({
+    id: zod.number(),
+    email: zod.string(),
+    name: zod.string(),
+    experience: zod.string(),
+    usdBalance: zod.number(),
+    kycStatus: zod.enum(["unverified", "pending", "verified", "rejected"]),
+    role: zod.enum(["user", "admin"]),
+    status: zod.enum(["active", "suspended"]),
+    createdAt: zod.string(),
+  })
+  .and(
+    zod.object({
+      phone: zod.string().nullable(),
+      kycFullName: zod.string().nullable(),
+      kycDateOfBirth: zod.string().nullable(),
+      kycCountry: zod.string().nullable(),
+      kycIdNumberMasked: zod.string().nullable(),
+      kycSubmittedAt: zod.string().nullable(),
+    }),
+  );
 export const GetAdminKycQueueResponse = zod.array(GetAdminKycQueueResponseItem);
+
+/**
+ * @summary Reveal a user's encrypted KYC ID number for manual review
+ */
+export const GetAdminKycIdNumberParams = zod.object({
+  userId: zod.coerce.number(),
+});
+
+export const GetAdminKycIdNumberResponse = zod.object({
+  idNumber: zod.string(),
+});
 
 /**
  * @summary Approve a user's KYC (admin only)

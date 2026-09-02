@@ -4,8 +4,9 @@ import crypto from "node:crypto";
 import { db } from "@workspace/db";
 import { usersTable, passwordResetTokensTable } from "@workspace/db";
 import { eq, and, gt, isNull } from "drizzle-orm";
-import { RegisterBody, LoginBody } from "@workspace/api-zod";
+import { RegisterBody, LoginBody, SubmitKycBody } from "@workspace/api-zod";
 import { sendWelcomeEmail, sendPasswordResetEmail, notifyAdminNewUser, notifyAdminKycSubmitted } from "../lib/email";
+import { encryptKycIdNumber } from "../lib/kyc-id-crypto";
 
 declare module "express-session" {
   interface SessionData {
@@ -22,7 +23,7 @@ router.post("/register", async (req, res) => {
     return;
   }
 
-  const { email, password, name, phone, country, dateOfBirth, experience } = parsed.data;
+  const { email, password, name, phone, country, dateOfBirth } = parsed.data;
 
   // Must be exactly one valid email address (no lists, spaces, or brackets)
   if (!/^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/.test(email.trim())) {
@@ -44,7 +45,7 @@ router.post("/register", async (req, res) => {
     phone,
     country,
     dateOfBirth,
-    experience,
+    experience: "beginner",
     usdBalance: 0,
   }).returning();
 
@@ -149,21 +150,43 @@ router.post("/kyc/verify", async (req, res) => {
     return;
   }
 
-  const { fullName, dateOfBirth, country, idNumber } = (req.body ?? {}) as {
-    fullName?: string;
-    dateOfBirth?: string;
-    country?: string;
-    idNumber?: string;
-  };
+  const parsed = SubmitKycBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid KYC details" });
+    return;
+  }
 
-  if (!fullName || !dateOfBirth || !country || !idNumber) {
-    res.status(400).json({ error: "All KYC fields are required" });
+  const normalizedFullName = parsed.data.fullName.trim();
+  const normalizedCountry = parsed.data.country.trim();
+  const normalizedIdNumber = parsed.data.idNumber.trim();
+  const dateOfBirth = parsed.data.dateOfBirth;
+  if (!normalizedFullName || !normalizedCountry || !normalizedIdNumber) {
+    res.status(400).json({ error: "Invalid KYC details" });
+    return;
+  }
+  const [year, month, day] = dateOfBirth.split("-").map(Number);
+  const dob = new Date(Date.UTC(year, month - 1, day));
+  const today = new Date();
+  const validCalendarDate =
+    dob.getUTCFullYear() === year &&
+    dob.getUTCMonth() === month - 1 &&
+    dob.getUTCDate() === day;
+  const eighteenthBirthday = new Date(Date.UTC(year + 18, month - 1, day));
+  if (!validCalendarDate || eighteenthBirthday > today) {
+    res.status(400).json({ error: "A valid date of birth for a user aged 18 or older is required" });
     return;
   }
 
   const [updated] = await db
     .update(usersTable)
-    .set({ kycStatus: "pending" })
+    .set({
+      kycStatus: "pending",
+      kycFullName: normalizedFullName,
+      kycDateOfBirth: dateOfBirth,
+      kycCountry: normalizedCountry,
+      kycIdNumber: encryptKycIdNumber(normalizedIdNumber),
+      kycSubmittedAt: new Date(),
+    })
     .where(eq(usersTable.id, req.session.userId))
     .returning();
 
@@ -172,7 +195,7 @@ router.post("/kyc/verify", async (req, res) => {
     return;
   }
 
-  req.log.info({ userId: updated.id, country }, "KYC submitted, awaiting admin approval");
+  req.log.info({ userId: updated.id }, "KYC submitted, awaiting admin approval");
 
   notifyAdminKycSubmitted(updated.email, updated.name);
 

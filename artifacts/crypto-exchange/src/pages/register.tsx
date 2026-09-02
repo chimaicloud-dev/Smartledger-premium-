@@ -8,7 +8,7 @@ import { motion } from "framer-motion";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertCircle, CheckCircle2, ChevronDown } from "lucide-react";
+import { AlertCircle, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const COUNTRIES = [
@@ -47,7 +47,6 @@ const registerSchema = z.object({
   }, "You must be at least 18 years old"),
   password: z.string().min(8, "At least 8 characters"),
   confirmPassword: z.string(),
-  experience: z.enum(["beginner", "experienced"]),
 }).refine((d) => d.password === d.confirmPassword, {
   message: "Passwords do not match",
   path: ["confirmPassword"],
@@ -55,29 +54,22 @@ const registerSchema = z.object({
 
 type RegisterForm = z.infer<typeof registerSchema>;
 
-const STEPS = ["Personal Info", "Location", "Security", "Experience"];
+const STEPS = ["Personal Info", "Location", "Security"];
 
 export default function RegisterPage() {
   const { register: registerUser, isRegisterPending } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState(0);
 
-  const searchParams = new URLSearchParams(window.location.search);
-  const defaultLevel = searchParams.get("level") === "experienced" ? "experienced" : "beginner";
-
-  const { register, handleSubmit, watch, setValue, trigger, formState: { errors } } = useForm<RegisterForm>({
+  const { register, handleSubmit, trigger, formState: { errors } } = useForm<RegisterForm>({
     resolver: zodResolver(registerSchema),
-    defaultValues: { experience: defaultLevel as "beginner" | "experienced" },
     mode: "onChange",
   });
-
-  const selectedExperience = watch("experience");
 
   const stepFields: (keyof RegisterForm)[][] = [
     ["name", "email"],
     ["phone", "country", "dateOfBirth"],
     ["password", "confirmPassword"],
-    ["experience"],
   ];
 
   const nextStep = async () => {
@@ -89,7 +81,7 @@ export default function RegisterPage() {
     try {
       setError(null);
       const { confirmPassword, ...payload } = data;
-      await registerUser(payload as any);
+      await registerUser(payload);
     } catch (err: any) {
       setError(apiErrorMessage(err, "Failed to register. Please try again."));
     }
@@ -195,45 +187,6 @@ export default function RegisterPage() {
                     <label className="text-sm font-medium text-foreground ml-1">Confirm Password</label>
                     <Input {...register("confirmPassword")} type="password" placeholder="Repeat your password" />
                     {errors.confirmPassword && <p className="text-destructive text-sm ml-1">{errors.confirmPassword.message}</p>}
-                  </div>
-                </motion.div>
-              )}
-
-              {/* Step 3 — Experience */}
-              {step === 3 && (
-                <motion.div key="step3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-5">
-                  <p className="text-sm text-muted-foreground">What is your experience level with crypto trading?</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div
-                      onClick={() => setValue("experience", "beginner")}
-                      className={cn(
-                        "p-5 rounded-xl border-2 cursor-pointer transition-all flex flex-col items-center gap-3 text-center",
-                        selectedExperience === "beginner"
-                          ? "border-primary bg-primary/10 text-primary"
-                          : "border-border hover:border-primary/50 text-muted-foreground"
-                      )}
-                    >
-                      <CheckCircle2 className={cn("w-6 h-6", selectedExperience === "beginner" ? "opacity-100" : "opacity-20")} />
-                      <div>
-                        <p className="font-semibold text-sm">Beginner</p>
-                        <p className="text-xs opacity-70 mt-0.5">New to crypto</p>
-                      </div>
-                    </div>
-                    <div
-                      onClick={() => setValue("experience", "experienced")}
-                      className={cn(
-                        "p-5 rounded-xl border-2 cursor-pointer transition-all flex flex-col items-center gap-3 text-center",
-                        selectedExperience === "experienced"
-                          ? "border-accent bg-accent/10 text-accent"
-                          : "border-border hover:border-accent/50 text-muted-foreground"
-                      )}
-                    >
-                      <CheckCircle2 className={cn("w-6 h-6", selectedExperience === "experienced" ? "opacity-100" : "opacity-20")} />
-                      <div>
-                        <p className="font-semibold text-sm">Experienced</p>
-                        <p className="text-xs opacity-70 mt-0.5">I've traded before</p>
-                      </div>
-                    </div>
                   </div>
                 </motion.div>
               )}

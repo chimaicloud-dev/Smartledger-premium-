@@ -5,7 +5,6 @@
  * CryptoX Exchange API
  * OpenAPI spec version: 0.1.0
  */
-import type { RegisterRequestExperience } from "./registerRequestExperience";
 
 export interface RegisterRequest {
   email: string;
@@ -14,5 +13,4 @@ export interface RegisterRequest {
   phone: string;
   country: string;
   dateOfBirth: string;
-  experience: RegisterRequestExperience;
 }

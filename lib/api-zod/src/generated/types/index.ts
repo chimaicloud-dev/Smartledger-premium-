@@ -7,6 +7,8 @@
  */
 
 export * from "./adminCreateRequest";
+export * from "./adminKycIdNumber";
+export * from "./adminKycSubmission";
 export * from "./adminStats";
 export * from "./adminTransaction";
 export * from "./adminUserPreview";
@@ -35,7 +37,6 @@ export * from "./loginRequest";
 export * from "./messageResponse";
 export * from "./portfolio";
 export * from "./registerRequest";
-export * from "./registerRequestExperience";
 export * from "./tradeRequest";
 export * from "./transaction";
 export * from "./transactionStatus";
