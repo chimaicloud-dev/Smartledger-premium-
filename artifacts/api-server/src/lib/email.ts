@@ -1,10 +1,16 @@
 import nodemailer from "nodemailer";
 import type { Transporter } from "nodemailer";
+import brandLogoDataUrl from "../assets/email-logo.png";
 
 // SMTP account for the support mailbox (no Gmail involved)
 const SMTP_USER = process.env.SMTP_USER || "support@smartledger-premium.com";
 const FROM_ADDRESS = process.env.EMAIL_FROM || SMTP_USER;
 const FROM_NAME = "SmartLedger Premium";
+const BRAND_NAME = "SmartLedger Premium";
+const BRAND_GOLD = "#D8A83E";
+const BRAND_TEAL = "#16A6B6";
+const BRAND_LOGO_CID = "smartledger-premium-logo";
+const BRAND_LOGO_CONTENT = Buffer.from(brandLogoDataUrl.split(",", 2)[1] ?? "", "base64");
 
 let transporter: Transporter | null = null;
 
@@ -26,38 +32,41 @@ function getTransporter(): Transporter | null {
 
 // ---------- shared template ----------
 
-const GOLD = "#E8A93C";
-const BG = "#0E0F12";
-const CARD = "#17181D";
-const ROW_BORDER = "#26272e";
-const MUTED = "#8b8e98";
-
 function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function escAttr(s: string): string {
+  return esc(s).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+function subject(title: string): string {
+  return `[${BRAND_NAME}] ${title}`;
 }
 
 export type EmailRow = { label: string; value: string };
 
 /**
- * Renders the SmartLedger Premium dark email shell.
- * The logo is pure text wrapped in translate="no" / notranslate so Gmail
- * and browsers never auto-translate the brand name.
+ * Compact, email-client-safe SmartLedger Premium shell inspired by the
+ * proportions and hierarchy of leading exchange transaction emails.
+ * The brand mark is an image, so translation tools cannot alter it.
  */
 export function renderEmail(opts: {
   title: string;
+  recipientName?: string;
   intro?: string;
   rows?: EmailRow[];
   outro?: string;
 }): string {
-  const { title, intro, rows, outro } = opts;
+  const { title, recipientName, intro, rows, outro } = opts;
   const rowsHtml = rows && rows.length
-    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid ${ROW_BORDER};border-radius:14px;border-collapse:separate;overflow:hidden;">
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0;border-collapse:collapse;">
         ${rows
           .map(
-            (r, i) => `
+            (r) => `
           <tr>
-            <td class="sl-row-label" style="padding:10px 12px;color:${MUTED};font-size:12px;width:34%;vertical-align:top;${i > 0 ? `border-top:1px solid ${ROW_BORDER};` : ""}">${esc(r.label)}</td>
-            <td class="sl-row-value" style="padding:10px 12px;color:#ffffff;font-size:12px;font-weight:700;word-break:break-word;overflow-wrap:anywhere;${i > 0 ? `border-top:1px solid ${ROW_BORDER};` : ""}">${esc(r.value)}</td>
+            <td class="sl-row-label" style="padding:4px 16px 4px 0;color:#595959;font-size:14px;line-height:1.45;width:38%;vertical-align:top;white-space:nowrap;">${esc(r.label)}</td>
+            <td class="sl-row-value" style="padding:4px 0;color:#151515;font-size:14px;line-height:1.45;font-weight:600;word-break:break-word;overflow-wrap:anywhere;">${esc(r.value)}</td>
           </tr>`
           )
           .join("")}
@@ -70,55 +79,67 @@ export function renderEmail(opts: {
 <meta charset="utf-8">
 <meta name="google" content="notranslate">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="color-scheme" content="dark">
-<meta name="supported-color-schemes" content="dark">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <!--[if mso]>
 <noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
 <![endif]-->
 <style>
-  :root { color-scheme: dark; supported-color-schemes: dark; }
+  :root { color-scheme: light; supported-color-schemes: light; }
   body, table, td { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
   @media only screen and (max-width: 620px) {
-    .sl-outer-pad { padding-left: 0 !important; padding-right: 0 !important; }
+    .sl-outer-pad { padding-left: 18px !important; padding-right: 18px !important; }
     .sl-card { width: 100% !important; max-width: 100% !important; border-radius: 0 !important; }
     .sl-card-pad { padding-left: 14px !important; padding-right: 14px !important; }
-    .sl-title { font-size: 18px !important; }
-    .sl-logo { font-size: 20px !important; }
-    .sl-row-label { padding: 9px 8px !important; font-size: 11px !important; }
-    .sl-row-value { padding: 9px 8px !important; font-size: 11px !important; }
+    .sl-title { font-size: 25px !important; }
+    .sl-row-label, .sl-row-value { font-size: 13px !important; }
   }
 </style>
 <title>${esc(title)}</title>
 </head>
-<body bgcolor="${BG}" style="margin:0;padding:0;background-color:${BG};">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${BG}" style="background-color:${BG};padding:8px 0;">
+<body bgcolor="#ffffff" style="margin:0;padding:0;background-color:#ffffff;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff" style="background-color:#ffffff;">
     <tr>
-      <td class="sl-outer-pad" align="center" style="padding:8px 0;">
-        <table role="presentation" class="sl-card" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${CARD}" style="max-width:600px;width:100%;background-color:${CARD};border-radius:16px;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+      <td class="sl-outer-pad" align="center" style="padding:24px 20px;">
+        <table role="presentation" class="sl-card" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff" style="max-width:600px;width:100%;background-color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
           <!-- Header -->
           <tr>
-            <td class="sl-card-pad" style="padding:18px 24px 14px 24px;border-bottom:1px solid ${ROW_BORDER};">
-              <span class="notranslate sl-logo" translate="no" style="display:block;color:#ffffff;font-size:22px;font-weight:800;letter-spacing:-0.5px;">SmartLedger</span>
-              <span class="notranslate" translate="no" style="display:block;color:${GOLD};font-size:10px;font-weight:700;letter-spacing:4px;margin-top:1px;">PREMIUM</span>
+            <td class="sl-card-pad" style="padding:0 14px;">
+              <div style="height:6px;background-color:${BRAND_TEAL};font-size:0;line-height:0;">&nbsp;</div>
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:34px 0 44px 0;">
+                <tr>
+                  <td style="vertical-align:middle;padding-right:12px;">
+                    <img src="cid:${BRAND_LOGO_CID}" width="62" height="62" alt="SmartLedger Premium" class="notranslate" translate="no" style="display:block;width:62px;height:62px;border:0;border-radius:10px;object-fit:cover;">
+                  </td>
+                  <td class="notranslate" translate="no" style="vertical-align:middle;color:#0b0e11;font-size:22px;line-height:1.05;font-weight:800;letter-spacing:-0.4px;">
+                    SmartLedger<br><span style="color:${BRAND_GOLD};font-size:11px;letter-spacing:3.4px;">PREMIUM</span>
+                  </td>
+                </tr>
+              </table>
             </td>
           </tr>
           <!-- Body -->
           <tr>
-            <td class="sl-card-pad" style="padding:18px 24px 4px 24px;">
-              <h1 class="sl-title" style="margin:0;color:#ffffff;font-size:21px;font-weight:800;">${esc(title)}</h1>
-              <div style="width:48px;height:3px;background-color:${GOLD};border-radius:2px;margin:9px 0 14px 0;"></div>
-              ${intro ? `<p style="margin:0 0 14px 0;color:#c9ccd4;font-size:13px;line-height:1.45;">${intro}</p>` : ""}
+            <td class="sl-card-pad" style="padding:0 28px;">
+              <h1 class="sl-title" style="margin:0 0 4px 0;color:#0b0e11;font-size:28px;line-height:1.2;font-weight:750;letter-spacing:-0.5px;">${esc(title)}</h1>
+              ${recipientName ? `<p style="margin:0 0 20px 0;color:#202020;font-size:15px;line-height:1.5;">Hi <strong>${esc(recipientName)}</strong>,</p>` : ""}
+              ${intro ? `<p style="margin:0 0 20px 0;color:#202020;font-size:15px;line-height:1.55;">${intro}</p>` : ""}
               ${rowsHtml}
-              ${outro ? `<p style="margin:14px 0 0 0;color:#c9ccd4;font-size:12px;line-height:1.45;">${outro}</p>` : ""}
+              ${outro ? `<div style="margin:24px 0 0 0;color:#202020;font-size:14px;line-height:1.55;">${outro}</div>` : ""}
             </td>
           </tr>
           <!-- Footer -->
           <tr>
-            <td class="sl-card-pad" style="padding:14px 24px 18px 24px;">
-              <p style="margin:0;color:${MUTED};font-size:10px;text-align:center;line-height:1.45;">
-                This is an automated notification from <span class="notranslate" translate="no">SmartLedger Premium</span>.<br>
-                &copy; ${new Date().getFullYear()} <span class="notranslate" translate="no">Smartledger-premium</span> &middot; London, United Kingdom
+            <td class="sl-card-pad" style="padding:42px 28px 18px 28px;">
+              <div style="height:1px;background:#e8e8e8;font-size:0;line-height:0;margin-bottom:24px;">&nbsp;</div>
+              <p style="margin:0 0 8px 0;color:#333333;font-size:13px;line-height:1.55;">
+                Any question or need help?<br>
+                Contact the <a href="mailto:${escAttr(FROM_ADDRESS)}" style="color:${BRAND_TEAL};text-decoration:none;">SmartLedger Premium support team</a>.
+              </p>
+              <p style="margin:0;color:#777777;font-size:12px;line-height:1.5;">
+                This email was sent automatically. Please do not reply.<br>
+                &copy; ${new Date().getFullYear()} <span class="notranslate" translate="no">SmartLedger Premium</span> &middot; London, United Kingdom
               </p>
             </td>
           </tr>
@@ -167,6 +188,14 @@ export async function sendEmail(to: string, subject: string, html: string): Prom
         to: recipient,
         subject,
         html,
+        attachments: [
+          {
+            filename: "smartledger-premium-logo.png",
+            content: BRAND_LOGO_CONTENT,
+            cid: BRAND_LOGO_CID,
+            contentType: "image/png",
+          },
+        ],
       });
       return; // success
     } catch (err) {
@@ -233,15 +262,16 @@ function fmtDate(d: Date = new Date(), timezone?: string | null): string {
 export function sendWelcomeEmail(to: string, name: string): void {
   const html = renderEmail({
     title: "Welcome to SmartLedger Premium",
-    intro: `Hi <strong>${esc(name)}</strong>, your account has been created successfully. You can now deposit funds, trade crypto and forex assets, and track your portfolio in real time.`,
+    recipientName: name,
+    intro: "Your account has been created successfully. You can now deposit funds, trade crypto and forex assets, and track your portfolio in real time.",
     rows: [
-      { label: "Account Email", value: to },
       { label: "Status", value: "Active" },
       { label: "Registered At", value: fmtDate() },
     ],
     outro: "If you did not create this account, please contact our support team immediately.",
   });
-  dispatch(sendEmail(to, "Welcome to SmartLedger Premium", html), "Welcome to SmartLedger Premium", to);
+  const emailSubject = subject("Welcome to SmartLedger Premium");
+  dispatch(sendEmail(to, emailSubject, html), emailSubject, to);
 }
 
 /**
@@ -272,11 +302,12 @@ export function sendWithdrawalRequestedEmail(
   );
   const html = renderEmail({
     title: "Withdrawal Requested",
+    recipientName: name,
     rows,
     outro: "Your withdrawal is being reviewed by our team. You will receive another email once it has been processed.",
   });
-  const subject = `Withdrawal Requested — ${fmtUsd(data.amount)}`;
-  dispatch(sendEmail(to, subject, html), subject, to);
+  const emailSubject = subject(`Withdrawal requested — ${fmtUsd(data.amount)}`);
+  dispatch(sendEmail(to, emailSubject, html), emailSubject, to);
 }
 
 export function sendWithdrawalCompletedEmail(
@@ -295,17 +326,19 @@ export function sendWithdrawalCompletedEmail(
     { label: "Processed At", value: fmtDate(new Date(), data.timezone) }
   );
   const html = renderEmail({
-    title: "Withdrawal Completed",
+    title: "Withdrawal Successful",
+    recipientName: name,
     rows,
     outro: "Your funds have been sent. Depending on the network or bank, it may take some time to arrive.",
   });
-  const subject = `Withdrawal Completed — ${fmtUsd(data.amount)}`;
-  dispatch(sendEmail(to, subject, html), subject, to);
+  const emailSubject = subject(`Withdrawal successful — ${fmtUsd(data.amount)}`);
+  dispatch(sendEmail(to, emailSubject, html), emailSubject, to);
 }
 
 export function sendWithdrawalRejectedEmail(to: string, name: string, data: { amount: number; method: string; timezone?: string | null }): void {
   const html = renderEmail({
     title: "Withdrawal Rejected",
+    recipientName: name,
     rows: [
       { label: "User", value: name },
       { label: "Amount", value: fmtUsd(data.amount) },
@@ -315,7 +348,8 @@ export function sendWithdrawalRejectedEmail(to: string, name: string, data: { am
     ],
     outro: "The withdrawn amount has been returned to your account balance. Please contact support if you believe this was a mistake.",
   });
-  dispatch(sendEmail(to, "Withdrawal Rejected", html), "Withdrawal Rejected", to);
+  const emailSubject = subject("Withdrawal rejected");
+  dispatch(sendEmail(to, emailSubject, html), emailSubject, to);
 }
 
 export function sendDepositReceivedEmail(
@@ -335,11 +369,12 @@ export function sendDepositReceivedEmail(
   );
   const html = renderEmail({
     title: "Deposit Received",
+    recipientName: name,
     rows,
     outro: "Your deposit is awaiting confirmation by our team. Your balance will be credited once it has been approved.",
   });
-  const subject = `Deposit Received — ${fmtUsd(data.usdAmount)}`;
-  dispatch(sendEmail(to, subject, html), subject, to);
+  const emailSubject = subject(`Deposit received — ${fmtUsd(data.usdAmount)}`);
+  dispatch(sendEmail(to, emailSubject, html), emailSubject, to);
 }
 
 export function sendDepositApprovedEmail(
@@ -358,17 +393,19 @@ export function sendDepositApprovedEmail(
     { label: "Approved At", value: fmtDate() }
   );
   const html = renderEmail({
-    title: "Deposit Approved",
+    title: "Deposit Successful",
+    recipientName: name,
     rows,
     outro: "Your deposit has been confirmed and your balance has been credited. Happy trading!",
   });
-  const subject = `Deposit Approved — ${fmtUsd(data.usdAmount)}`;
-  dispatch(sendEmail(to, subject, html), subject, to);
+  const emailSubject = subject(`Deposit successful — ${fmtUsd(data.usdAmount)}`);
+  dispatch(sendEmail(to, emailSubject, html), emailSubject, to);
 }
 
 export function sendDepositRejectedEmail(to: string, name: string, data: { usdAmount: number }): void {
   const html = renderEmail({
     title: "Deposit Rejected",
+    recipientName: name,
     rows: [
       { label: "User", value: name },
       { label: "USD Value", value: fmtUsd(data.usdAmount) },
@@ -377,21 +414,23 @@ export function sendDepositRejectedEmail(to: string, name: string, data: { usdAm
     ],
     outro: "Your deposit could not be confirmed. Please contact support for more information.",
   });
-  dispatch(sendEmail(to, "Deposit Rejected", html), "Deposit Rejected", to);
+  const emailSubject = subject("Deposit rejected");
+  dispatch(sendEmail(to, emailSubject, html), emailSubject, to);
 }
 
-export function sendPasswordResetEmail(to: string, resetUrl: string): void {
+export function sendPasswordResetEmail(to: string, name: string, resetUrl: string): void {
   const html = renderEmail({
     title: "Reset Your Password",
+    recipientName: name,
     intro: `We received a request to reset the password for your SmartLedger Premium account.<br><br>Click the button below to choose a new password. This link is valid for <strong>1 hour</strong> and can only be used once.`,
     rows: [
-      { label: "Account Email", value: to },
       { label: "Requested At", value: fmtDate() },
       { label: "Link Expires", value: "1 hour from now" },
     ],
-    outro: `<a href="${resetUrl}" style="display:inline-block;margin-top:8px;padding:14px 28px;background-color:${GOLD};color:#0E0F12;font-weight:700;font-size:15px;border-radius:10px;text-decoration:none;">Reset Password</a><br><br>If you did not request a password reset, you can safely ignore this email — your password will remain unchanged.`,
+    outro: `<a href="${escAttr(resetUrl)}" style="display:inline-block;margin-top:8px;padding:13px 24px;background-color:#0b0e11;color:#ffffff;font-weight:700;font-size:14px;border-radius:4px;text-decoration:none;">Reset Password</a><br><br>If you did not request a password reset, you can safely ignore this email — your password will remain unchanged.`,
   });
-  dispatch(sendEmail(to, "Reset Your Password — SmartLedger Premium", html), "Reset Your Password — SmartLedger Premium", to);
+  const emailSubject = subject("Reset your password");
+  dispatch(sendEmail(to, emailSubject, html), emailSubject, to);
 }
 // ---------- admin notifications ----------
 
@@ -417,8 +456,8 @@ export function notifyAdminDepositReceived(
     rows,
     outro: "A user has submitted a deposit. Please log in to the admin panel to review and approve or reject it.",
   });
-  const subject = `[Admin] New Deposit — ${fmtUsd(data.usdAmount)} from ${userName}`;
-  dispatch(sendEmail(ADMIN_EMAIL, subject, html), subject, ADMIN_EMAIL);
+  const emailSubject = `[${BRAND_NAME} Admin] New deposit — ${fmtUsd(data.usdAmount)} from ${userName}`;
+  dispatch(sendEmail(ADMIN_EMAIL, emailSubject, html), emailSubject, ADMIN_EMAIL);
 }
 
 export function notifyAdminWithdrawalRequested(
@@ -438,42 +477,43 @@ export function notifyAdminWithdrawalRequested(
     rows,
     outro: "A user has requested a withdrawal. Please log in to the admin panel to review and approve or reject it.",
   });
-  const subject = `[Admin] New Withdrawal — ${fmtUsd(data.amount)} from ${userName}`;
-  dispatch(sendEmail(ADMIN_EMAIL, subject, html), subject, ADMIN_EMAIL);
+  const emailSubject = `[${BRAND_NAME} Admin] New withdrawal — ${fmtUsd(data.amount)} from ${userName}`;
+  dispatch(sendEmail(ADMIN_EMAIL, emailSubject, html), emailSubject, ADMIN_EMAIL);
 }
 
-export function notifyAdminNewUser(userEmail: string, name: string): void {
+export function notifyAdminNewUser(name: string): void {
   const html = renderEmail({
     title: "New User Registered",
     rows: [
       { label: "Name", value: name },
-      { label: "Email", value: userEmail },
       { label: "Registered At", value: fmtDate() },
     ],
     outro: "A new user has created an account on SmartLedger Premium.",
   });
-  dispatch(sendEmail(ADMIN_EMAIL, `[Admin] New User — ${name}`, html), `[Admin] New User — ${name}`, ADMIN_EMAIL);
+  const emailSubject = `[${BRAND_NAME} Admin] New user — ${name}`;
+  dispatch(sendEmail(ADMIN_EMAIL, emailSubject, html), emailSubject, ADMIN_EMAIL);
 }
 
-export function notifyAdminKycSubmitted(userEmail: string, name: string): void {
+export function notifyAdminKycSubmitted(name: string): void {
   const html = renderEmail({
     title: "New KYC Submission",
     rows: [
       { label: "Name", value: name },
-      { label: "Email", value: userEmail },
       { label: "Status", value: "Pending Review" },
       { label: "Submitted At", value: fmtDate() },
     ],
     outro: "A user has submitted KYC verification. Please log in to the admin panel to review and approve or reject it.",
   });
-  dispatch(sendEmail(ADMIN_EMAIL, `[Admin] KYC Submission — ${name}`, html), `[Admin] KYC Submission — ${name}`, ADMIN_EMAIL);
+  const emailSubject = `[${BRAND_NAME} Admin] KYC submission — ${name}`;
+  dispatch(sendEmail(ADMIN_EMAIL, emailSubject, html), emailSubject, ADMIN_EMAIL);
 }
 
-export function sendKycStatusEmail(to: string, approved: boolean): void {
+export function sendKycStatusEmail(to: string, name: string, approved: boolean): void {
   const html = renderEmail({
     title: approved ? "Identity Verified" : "Verification Rejected",
+    recipientName: name,
     rows: [
-      { label: "User", value: to },
+      { label: "User", value: name },
       { label: "KYC Status", value: approved ? "Verified" : "Rejected" },
       { label: "Reviewed At", value: fmtDate() },
     ],
@@ -481,6 +521,6 @@ export function sendKycStatusEmail(to: string, approved: boolean): void {
       ? "Your identity has been verified. You now have full access to all SmartLedger Premium features."
       : "Your identity verification was not successful. Please re-submit your documents or contact support.",
   });
-  const subject = approved ? "Identity Verified — SmartLedger Premium" : "Verification Rejected";
-  dispatch(sendEmail(to, subject, html), subject, to);
+  const emailSubject = subject(approved ? "Identity verified" : "Verification rejected");
+  dispatch(sendEmail(to, emailSubject, html), emailSubject, to);
 }

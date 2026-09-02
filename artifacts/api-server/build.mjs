@@ -90,6 +90,9 @@ const sharedConfig = {
     "electron",
   ],
   sourcemap: "linked",
+  loader: {
+    ".png": "dataurl",
+  },
   plugins: [esbuildPluginPino({ transports: ["pino-pretty"] })],
   banner: {
     js: `import { createRequire as __bannerCrReq } from 'node:module';

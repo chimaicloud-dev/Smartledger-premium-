@@ -52,7 +52,7 @@ router.post("/register", async (req, res) => {
   req.session.userId = user.id;
 
   sendWelcomeEmail(user.email, user.name);
-  notifyAdminNewUser(user.email, user.name);
+  notifyAdminNewUser(user.name);
 
   res.status(201).json({
     user: {
@@ -197,7 +197,7 @@ router.post("/kyc/verify", async (req, res) => {
 
   req.log.info({ userId: updated.id }, "KYC submitted, awaiting admin approval");
 
-  notifyAdminKycSubmitted(updated.email, updated.name);
+  notifyAdminKycSubmitted(updated.name);
 
   res.json({
     id: updated.id,
@@ -295,7 +295,7 @@ router.post("/forgot-password", async (req, res) => {
         : "http://localhost:5173");
 
     const resetUrl = `${frontendBase}/reset-password?token=${encodeURIComponent(token)}`;
-    sendPasswordResetEmail(user.email, resetUrl);
+    sendPasswordResetEmail(user.email, user.name, resetUrl);
   }
 
   res.json({ message: "If an account with that email exists, a reset link has been sent." });

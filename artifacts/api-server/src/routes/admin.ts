@@ -505,7 +505,7 @@ router.post("/kyc/:userId/approve", async (req, res) => {
     .where(eq(usersTable.id, userId))
     .returning();
   req.log.info({ userId }, "admin.kyc.approved");
-  sendKycStatusEmail(user.email, true);
+  sendKycStatusEmail(user.email, user.name, true);
   res.json(userToResponse(updated));
 });
 
@@ -520,7 +520,7 @@ router.post("/kyc/:userId/reject", async (req, res) => {
     .where(eq(usersTable.id, userId))
     .returning();
   req.log.info({ userId }, "admin.kyc.rejected");
-  sendKycStatusEmail(user.email, false);
+  sendKycStatusEmail(user.email, user.name, false);
   res.json(userToResponse(updated));
 });
 

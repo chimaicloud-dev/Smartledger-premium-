@@ -37,6 +37,16 @@ export async function ensureSchema(log: typeof Logger): Promise<void> {
         CONSTRAINT "withdrawal_addresses_user_method_unique" UNIQUE ("user_id", "method")
       )
     `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS "password_reset_tokens" (
+        "id" serial PRIMARY KEY,
+        "user_id" integer NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+        "token" text NOT NULL UNIQUE,
+        "expires_at" timestamp NOT NULL,
+        "used_at" timestamp,
+        "created_at" timestamp NOT NULL DEFAULT now()
+      )
+    `);
     await pool.query(`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "timezone" text`);
     await pool.query(`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "kyc_full_name" text`);
     await pool.query(`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "kyc_date_of_birth" text`);
