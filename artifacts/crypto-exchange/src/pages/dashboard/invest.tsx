@@ -208,7 +208,7 @@ function loadTvScript(cb: () => void) {
 
 let widgetIdCounter = 0;
 
-function TvChartInner({ tvSymbol, height, id }: { tvSymbol: string; height: number | string; id: string }) {
+function TvChartInner({ tvSymbol, height, id, theme = "dark" }: { tvSymbol: string; height: number | string; id: string; theme?: "light" | "dark" }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const widgetRef = useRef<any>(null);
 
@@ -230,10 +230,10 @@ function TvChartInner({ tvSymbol, height, id }: { tvSymbol: string; height: numb
         symbol: tvSymbol,
         interval: "60",
         timezone: "Etc/UTC",
-        theme: "dark",
+        theme: theme,
         style: "1",
         locale: "en",
-        toolbar_bg: "#0d0d0d",
+        toolbar_bg: theme === "light" ? "#ffffff" : "#0d0d0d",
         enable_publishing: false,
         hide_top_toolbar: false,
         hide_side_toolbar: false,
@@ -244,15 +244,15 @@ function TvChartInner({ tvSymbol, height, id }: { tvSymbol: string; height: numb
         hide_volume: false,
         studies: [],
         overrides: {
-          "paneProperties.background": "#0d0d0d",
+          "paneProperties.background": theme === "light" ? "#ffffff" : "#0d0d0d",
           "paneProperties.backgroundType": "solid",
-          "scalesProperties.lineColor": "#333",
-          "scalesProperties.textColor": "#888",
-          "mainSeriesProperties.candleStyle.upColor": "#22c55e",
+          "scalesProperties.lineColor": theme === "light" ? "#e5e7eb" : "#333",
+          "scalesProperties.textColor": theme === "light" ? "#374151" : "#888",
+          "mainSeriesProperties.candleStyle.upColor": theme === "light" ? "#3b82f6" : "#22c55e",
           "mainSeriesProperties.candleStyle.downColor": "#ef4444",
-          "mainSeriesProperties.candleStyle.borderUpColor": "#22c55e",
+          "mainSeriesProperties.candleStyle.borderUpColor": theme === "light" ? "#3b82f6" : "#22c55e",
           "mainSeriesProperties.candleStyle.borderDownColor": "#ef4444",
-          "mainSeriesProperties.candleStyle.wickUpColor": "#22c55e",
+          "mainSeriesProperties.candleStyle.wickUpColor": theme === "light" ? "#3b82f6" : "#22c55e",
           "mainSeriesProperties.candleStyle.wickDownColor": "#ef4444",
         },
       });
@@ -280,7 +280,7 @@ function TvChartInner({ tvSymbol, height, id }: { tvSymbol: string; height: numb
   );
 }
 
-function TradingViewChart({ symbol, fillHeight, tradeFooter }: { symbol: string; fillHeight?: boolean; tradeFooter?: React.ReactNode }) {
+function TradingViewChart({ symbol, fillHeight, tradeFooter, theme = "dark" }: { symbol: string; fillHeight?: boolean; tradeFooter?: React.ReactNode; theme?: "light" | "dark" }) {
   const tvSymbol = TV_SYMBOL_MAP[symbol] ?? `FX:${symbol}`;
   const [fullscreen, setFullscreen] = useState(false);
   const idRef = useRef(`tv_${++widgetIdCounter}`);
@@ -315,7 +315,7 @@ function TradingViewChart({ symbol, fillHeight, tradeFooter }: { symbol: string;
             </button>
           </div>
           <div className="flex-1 min-h-0">
-            <TvChartInner tvSymbol={tvSymbol} height="100%" id={idRef.current} />
+            <TvChartInner tvSymbol={tvSymbol} height="100%" id={idRef.current} theme={theme} />
           </div>
         </div>
 
@@ -338,7 +338,7 @@ function TradingViewChart({ symbol, fillHeight, tradeFooter }: { symbol: string;
               </div>
             </div>
             <div className="flex-1 min-h-0">
-              <TvChartInner tvSymbol={tvSymbol} height="100%" id={fsIdRef.current} />
+              <TvChartInner tvSymbol={tvSymbol} height="100%" id={fsIdRef.current} theme={theme} />
             </div>
             {tradeFooter && (
               <div className="shrink-0 bg-card border-t border-border">
@@ -370,7 +370,7 @@ function TradingViewChart({ symbol, fillHeight, tradeFooter }: { symbol: string;
             Fullscreen
           </button>
         </div>
-        <TvChartInner tvSymbol={tvSymbol} height={300} id={idRef.current} />
+        <TvChartInner tvSymbol={tvSymbol} height={300} id={idRef.current} theme={theme} />
       </div>
 
       {fullscreen && (
@@ -394,7 +394,7 @@ function TradingViewChart({ symbol, fillHeight, tradeFooter }: { symbol: string;
             </div>
           </div>
           <div className="flex-1 min-h-0">
-            <TvChartInner tvSymbol={tvSymbol} height={window.innerHeight - 52} id={fsIdRef.current} />
+            <TvChartInner tvSymbol={tvSymbol} height={window.innerHeight - 52} id={fsIdRef.current} theme={theme} />
           </div>
         </div>
       )}
@@ -951,7 +951,7 @@ export default function InvestPage() {
     query: { queryKey: ["/api/market/prices"], refetchInterval: 5000, refetchOnWindowFocus: true },
   });
   const { data: forexMarkets, isLoading: forexLoading } = useGetForexPrices({
-    query: { queryKey: ["/api/market/forex"], refetchInterval: 15000, refetchOnWindowFocus: true },
+    query: { queryKey: ["/api/market/forex"], refetchInterval: 5000, refetchOnWindowFocus: true },
   });
   const markets = forexMarkets;
   const isLoading = forexLoading;
@@ -974,7 +974,7 @@ export default function InvestPage() {
   }
 
   const [search, setSearch] = useState("");
-  const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
+  const [selectedSymbol, setSelectedSymbol] = useState<string | null>("XAUUSD");
   const [tradeType, setTradeType] = useState<"buy" | "sell">("buy");
   const [tradeSuccess, setTradeSuccess] = useState<string | null>(null);
   const [tradeError, setTradeError] = useState<string | null>(null);
@@ -1089,6 +1089,13 @@ export default function InvestPage() {
   };
 
   const isPending = convertMutation.isPending;
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const cb = () => setIsMobile(window.innerWidth < 1024);
+    cb();
+    window.addEventListener("resize", cb);
+    return () => window.removeEventListener("resize", cb);
+  }, []);
 
   return (
     <DashboardLayout>
@@ -1337,9 +1344,9 @@ export default function InvestPage() {
         {/* Spot Trade Tab */}
         {activeTab === "trade" && (
           <div className="flex flex-col gap-4">
-          <div className="flex flex-col lg:flex-row gap-8" style={{ height: "calc(100vh - 310px)" }}>
+          <div className="flex flex-col lg:flex-row gap-8" style={{ height: isMobile ? "auto" : "calc(100vh - 310px)" }}>
             {/* Markets List */}
-            <div className="flex-1 flex flex-col min-h-0 bg-card rounded-2xl border border-border overflow-hidden">
+            <div className="hidden lg:flex flex-1 flex-col min-h-0 bg-card rounded-2xl border border-border overflow-hidden">
               <div className="p-4 border-b border-border space-y-4">
                 <div className="flex items-center justify-between gap-3">
                   <h2 className="text-xl font-bold">Forex, Gold & Stocks</h2>
@@ -1404,7 +1411,25 @@ export default function InvestPage() {
             </div>
 
             {/* Trade Panel */}
-            <div className="w-full lg:w-[400px] shrink-0">
+            <div className="w-full lg:w-[400px] shrink-0 flex flex-col gap-4">
+              <div className="lg:hidden flex overflow-x-auto gap-3 no-scrollbar py-1 shrink-0 -mx-4 px-4 snap-x">
+                {filteredMarkets.map((coin) => {
+                  const isSelected = selectedSymbol === coin.symbol;
+                  return (
+                    <button
+                      key={coin.symbol}
+                      onClick={() => { setSelectedSymbol(coin.symbol); setTradeSuccess(null); setTradeError(null); }}
+                      className={cn(
+                        "flex items-center gap-2 px-4 py-2 rounded-full border shrink-0 snap-start transition-all",
+                        isSelected ? "bg-primary text-primary-foreground border-primary shadow-sm" : "bg-card text-foreground border-border"
+                      )}
+                    >
+                      <span className="text-lg leading-none">{coin.icon}</span>
+                      <span className="font-bold text-sm">{coin.symbol}</span>
+                    </button>
+                  )
+                })}
+              </div>
               {selectedCoin ? (() => {
                 const pip = getPip(selectedCoin.symbol);
                 const halfSpread = pip.size;
@@ -1418,23 +1443,23 @@ export default function InvestPage() {
                 const tpNum = parseFloat(tpPips) || 0;
 
                 return (
-                  <Card className="h-full flex flex-col overflow-hidden p-0">
+                  <Card className={cn("flex flex-col overflow-hidden p-0 shadow-xl lg:shadow-none border-border lg:border-border", isMobile ? "h-[650px] bg-white text-black" : "h-full bg-card text-foreground")}>
 
                     {/* ── TOP BAR: balance + symbol ─────────────────────── */}
-                    <div className="flex items-center gap-3 px-4 py-2.5 border-b border-border bg-card shrink-0">
+                    <div className={cn("flex items-center gap-3 px-4 py-3 shrink-0 border-b", isMobile ? "bg-white border-gray-100" : "bg-card border-border")}>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <span className="text-lg">{selectedCoin.icon}</span>
-                          <span className="font-bold text-sm">{selectedCoin.symbol}</span>
-                          <span className={cn("text-xs font-semibold", selectedCoin.changePercent24h >= 0 ? "text-green-400" : "text-red-400")}>
+                          <span className="font-bold text-sm tracking-tight">{selectedCoin.symbol}</span>
+                          <span className={cn("text-xs font-semibold", selectedCoin.changePercent24h >= 0 ? "text-green-500" : "text-red-500")}>
                             {selectedCoin.changePercent24h >= 0 ? "▲" : "▼"}{formatPercent(Math.abs(selectedCoin.changePercent24h))}
                           </span>
                         </div>
                         <div className="text-[11px] text-muted-foreground">{selectedCoin.name}</div>
                       </div>
                       <div className="text-right shrink-0">
-                        <div className="text-xs text-muted-foreground">Balance</div>
-                        <div className="font-mono font-bold text-base text-foreground">{formatCurrency(maxBuy)}</div>
+                        <div className={cn("text-xs", isMobile ? "text-gray-500" : "text-muted-foreground")}>Balance</div>
+                        <div className="font-mono font-bold text-base">{formatCurrency(maxBuy)}</div>
                       </div>
                     </div>
 
@@ -1443,36 +1468,37 @@ export default function InvestPage() {
                       <TradingViewChart
                         symbol={selectedCoin.symbol}
                         fillHeight
+                        theme={isMobile ? "light" : "dark"}
                       />
                     </div>
 
                     {/* ── CONTROLS: volume + SL/TP (normal view) ────────── */}
-                    <div className="shrink-0 px-3 pt-3 pb-2 border-t border-border space-y-2 bg-card">
+                    <div className={cn("shrink-0 px-3 pt-3 pb-3 space-y-3 border-t", isMobile ? "bg-white border-gray-100" : "bg-card border-border")}>
                       <div className="flex items-center gap-2">
                         <div className="flex-1 space-y-0.5">
-                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Volume (Lots)</label>
+                          <label className={cn("text-[10px] font-bold uppercase tracking-wider", isMobile ? "text-gray-500" : "text-muted-foreground")}>Volume (Lots)</label>
                           <div className="flex items-center gap-1">
-                            <button type="button" onClick={() => setLots(v => Math.max(0.01, parseFloat(v) - 0.01).toFixed(2))} className="w-8 h-8 rounded bg-secondary hover:bg-border font-bold text-base transition-colors flex items-center justify-center shrink-0">−</button>
-                            <Input value={lots} onChange={e => setLots(e.target.value)} className="text-center font-mono font-bold text-sm h-8 px-1" type="number" step="0.01" min="0.01" />
-                            <button type="button" onClick={() => setLots(v => (parseFloat(v) + 0.01).toFixed(2))} className="w-8 h-8 rounded bg-secondary hover:bg-border font-bold text-base transition-colors flex items-center justify-center shrink-0">+</button>
+                            <button type="button" onClick={() => setLots(v => Math.max(0.01, parseFloat(v) - 0.01).toFixed(2))} className={cn("w-8 h-8 rounded font-bold text-base transition-colors flex items-center justify-center shrink-0", isMobile ? "bg-gray-100 hover:bg-gray-200 text-gray-700" : "bg-secondary hover:bg-border")}>−</button>
+                            <Input value={lots} onChange={e => setLots(e.target.value)} className={cn("text-center font-mono font-bold text-sm h-8 px-1 border-0 ring-1", isMobile ? "bg-gray-50 ring-gray-200" : "")} type="number" step="0.01" min="0.01" />
+                            <button type="button" onClick={() => setLots(v => (parseFloat(v) + 0.01).toFixed(2))} className={cn("w-8 h-8 rounded font-bold text-base transition-colors flex items-center justify-center shrink-0", isMobile ? "bg-gray-100 hover:bg-gray-200 text-gray-700" : "bg-secondary hover:bg-border")}>+</button>
                           </div>
                         </div>
                         <div className="shrink-0 text-right space-y-0.5">
-                          <div className="text-[10px] text-muted-foreground">Margin</div>
-                          <div className={cn("text-xs font-bold", canTrade ? "text-foreground" : "text-red-400")}>{formatCurrency(marginRequired)}</div>
-                          <div className="text-[10px] text-muted-foreground">{formatCurrency(pipVal)}/pip</div>
+                          <div className={cn("text-[10px]", isMobile ? "text-gray-500" : "text-muted-foreground")}>Margin</div>
+                          <div className={cn("text-xs font-bold", canTrade ? "" : "text-red-500")}>{formatCurrency(marginRequired)}</div>
+                          <div className={cn("text-[10px]", isMobile ? "text-gray-500" : "text-muted-foreground")}>{formatCurrency(pipVal)}/pip</div>
                         </div>
                       </div>
                       <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <label className="text-[10px] font-bold text-red-400 uppercase tracking-wider block mb-0.5">SL (pips)</label>
-                          <Input value={slPips} onChange={e => setSlPips(e.target.value)} placeholder="0" className="h-8 text-sm font-mono px-2" type="number" min="0" />
-                          {slNum > 0 && <p className="text-[10px] text-red-400 mt-0.5">Risk: {formatCurrency(slNum * pipVal)}</p>}
+                          <label className={cn("text-[10px] font-bold uppercase tracking-wider block mb-0.5", isMobile ? "text-red-500" : "text-red-400")}>SL (pips)</label>
+                          <Input value={slPips} onChange={e => setSlPips(e.target.value)} placeholder="0" className={cn("h-8 text-sm font-mono px-2 border-0 ring-1", isMobile ? "bg-gray-50 ring-gray-200 placeholder:text-gray-400" : "")} type="number" min="0" />
+                          {slNum > 0 && <p className={cn("text-[10px] mt-0.5", isMobile ? "text-red-500" : "text-red-400")}>Risk: {formatCurrency(slNum * pipVal)}</p>}
                         </div>
                         <div>
-                          <label className="text-[10px] font-bold text-green-400 uppercase tracking-wider block mb-0.5">TP (pips)</label>
-                          <Input value={tpPips} onChange={e => setTpPips(e.target.value)} placeholder="0" className="h-8 text-sm font-mono px-2" type="number" min="0" />
-                          {tpNum > 0 && <p className="text-[10px] text-green-400 mt-0.5">Reward: {formatCurrency(tpNum * pipVal)}</p>}
+                          <label className={cn("text-[10px] font-bold uppercase tracking-wider block mb-0.5", isMobile ? "text-blue-500" : "text-green-400")}>TP (pips)</label>
+                          <Input value={tpPips} onChange={e => setTpPips(e.target.value)} placeholder="0" className={cn("h-8 text-sm font-mono px-2 border-0 ring-1", isMobile ? "bg-gray-50 ring-gray-200 placeholder:text-gray-400" : "")} type="number" min="0" />
+                          {tpNum > 0 && <p className={cn("text-[10px] mt-0.5", isMobile ? "text-blue-500" : "text-green-400")}>Reward: {formatCurrency(tpNum * pipVal)}</p>}
                         </div>
                       </div>
                       {tradeSuccess && (

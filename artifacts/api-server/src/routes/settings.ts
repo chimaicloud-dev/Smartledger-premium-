@@ -16,7 +16,7 @@ const PUBLIC_KEYS = new Set([
   "plan_upgrade_min", "plan_upgrade_max", "plan_upgrade_daily_pct",
   "plan_pro-trader_min", "plan_pro-trader_max", "plan_pro-trader_daily_pct",
   "plan_professional_min", "plan_professional_max", "plan_professional_daily_pct",
-  "home_hero_title", "home_hero_subtitle", "home_badge_text",
+  "home_hero_title", "home_hero_subtitle",
   "home_feature1_title", "home_feature1_desc",
   "home_feature2_title", "home_feature2_desc",
 ]);
@@ -46,7 +46,6 @@ export const DEFAULT_SETTINGS: Record<string, string> = {
   plan_professional_min: "10000", plan_professional_max: "", plan_professional_daily_pct: "0.5",
   home_hero_title: "Invest, trade, and hold crypto securely.",
   home_hero_subtitle: "Smartledger-premium provides a professional, high-liquidity environment for both beginners and institutional traders.",
-  home_badge_text: "Trusted by 10M+ Users Worldwide",
   home_feature1_title: "Bank-grade Security",
   home_feature1_desc: "Your assets are protected by industry-leading protocols.",
   home_feature2_title: "Deep Liquidity",

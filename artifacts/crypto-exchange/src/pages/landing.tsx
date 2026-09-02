@@ -6,7 +6,6 @@ import { motion } from "framer-motion";
 import { ArrowRight, Zap, Shield, BarChart3 } from "lucide-react";
 
 const DEFAULTS = {
-  home_badge_text: "Trusted by 10M+ Users Worldwide",
   home_hero_title: "Invest, trade, and hold crypto securely.",
   home_hero_subtitle:
     "Smartledger-premium provides a professional, high-liquidity environment for both beginners and institutional traders. Choose your path to get started.",
@@ -79,7 +78,7 @@ export default function LandingPage() {
           className="flex-1 max-w-2xl text-center lg:text-left"
         >
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-sm font-medium mb-6">
-            <Zap className="w-4 h-4" /> {cfg.home_badge_text}
+            <Zap className="w-4 h-4" /> Trusted by users worldwide
           </div>
           <h1 className="text-5xl md:text-7xl font-bold font-display leading-[1.1] mb-6">
             {cfg.home_hero_title.includes("crypto") ? (

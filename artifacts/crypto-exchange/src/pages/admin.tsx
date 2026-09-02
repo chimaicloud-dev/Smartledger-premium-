@@ -1072,7 +1072,6 @@ function SettingsTab() {
               <p className="text-xs text-muted-foreground mt-0.5">The main headline visitors see on the homepage.</p>
             </div>
             <div className="p-5 space-y-4">
-              <SettingsField label="Badge Text" value={s("home_badge_text")} onChange={(v) => upd("home_badge_text", v)} placeholder="Trusted by 10M+ Users Worldwide" />
               <SettingsField label="Hero Title" value={s("home_hero_title")} onChange={(v) => upd("home_hero_title", v)} placeholder="Invest, trade, and hold crypto securely." />
               <SettingsField label="Hero Subtitle / Description" value={s("home_hero_subtitle")} onChange={(v) => upd("home_hero_subtitle", v)} placeholder="Platform description..." area />
             </div>

@@ -45,7 +45,7 @@ const ABOUT_GUIDES: AboutGuide[] = [
     id: "why",
     question: "Why do investors choose Smartledger-premium?",
     icon: TrendingUp,
-    short: "Trusted by 10M+ investors worldwide for security, speed and consistent returns.",
+    short: "Built for investors who value security, speed and dependable access.",
     body: (
       <div className="space-y-4 text-sm leading-relaxed text-muted-foreground">
         <p>
@@ -138,10 +138,9 @@ const ABOUT_GUIDES: AboutGuide[] = [
           retail investors deserve the same tools, speed and safeguards as Wall Street institutions.
         </p>
         <p>
-          What started as a private trading desk for a handful of clients quickly grew into one of
-          the most respected investment platforms in the industry. By 2021 we had crossed 1 million
-          users; today, more than 10 million investors across 150+ countries rely on
-          Smartledger-premium for crypto, forex, gold and equity exposure.
+          What started as a private trading desk for a handful of clients grew into a global
+          investment platform serving people across many countries. Smartledger-premium provides
+          access to crypto, forex, gold and equity markets from one account.
         </p>
         <div className="grid grid-cols-3 gap-3 pt-2">
           <div className="p-3 rounded-xl bg-secondary/40 border border-border text-center">
@@ -149,8 +148,8 @@ const ABOUT_GUIDES: AboutGuide[] = [
             <div className="text-[11px] uppercase tracking-wide">Founded</div>
           </div>
           <div className="p-3 rounded-xl bg-secondary/40 border border-border text-center">
-            <div className="text-2xl font-display font-bold text-primary">10M+</div>
-            <div className="text-[11px] uppercase tracking-wide">Investors</div>
+            <div className="text-2xl font-display font-bold text-primary">Global</div>
+            <div className="text-[11px] uppercase tracking-wide">Community</div>
           </div>
           <div className="p-3 rounded-xl bg-secondary/40 border border-border text-center">
             <div className="text-2xl font-display font-bold text-primary">150+</div>

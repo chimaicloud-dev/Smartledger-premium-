@@ -2,26 +2,26 @@ import type { Request } from "express";
 
 export type ForexAsset = {
   symbol: string;
-  yahooSymbol: string;
+  tradingViewSymbol: string;
+  scanner: "forex" | "cfd" | "america";
   name: string;
   icon: string;
   category: "metal" | "forex" | "stock";
-  fallback: number;
 };
 
 export const FOREX_ASSETS: ForexAsset[] = [
-  { symbol: "XAUUSD", yahooSymbol: "GC=F", name: "Gold Spot", icon: "🥇", category: "metal", fallback: 2350.0 },
-  { symbol: "XAGUSD", yahooSymbol: "SI=F", name: "Silver Spot", icon: "🥈", category: "metal", fallback: 28.5 },
-  { symbol: "EURUSD", yahooSymbol: "EURUSD=X", name: "Euro / US Dollar", icon: "💶", category: "forex", fallback: 1.085 },
-  { symbol: "GBPUSD", yahooSymbol: "GBPUSD=X", name: "British Pound / USD", icon: "💷", category: "forex", fallback: 1.265 },
-  { symbol: "USDJPY", yahooSymbol: "JPY=X", name: "US Dollar / Yen", icon: "💴", category: "forex", fallback: 156.4 },
-  { symbol: "AUDUSD", yahooSymbol: "AUDUSD=X", name: "Australian Dollar / USD", icon: "🇦🇺", category: "forex", fallback: 0.658 },
-  { symbol: "USDCAD", yahooSymbol: "CAD=X", name: "US Dollar / Canadian", icon: "🇨🇦", category: "forex", fallback: 1.368 },
-  { symbol: "USDCHF", yahooSymbol: "CHF=X", name: "US Dollar / Swiss Franc", icon: "🇨🇭", category: "forex", fallback: 0.912 },
-  { symbol: "AAPL", yahooSymbol: "AAPL", name: "Apple Inc.", icon: "🍎", category: "stock", fallback: 218.0 },
-  { symbol: "TSLA", yahooSymbol: "TSLA", name: "Tesla Inc.", icon: "🚗", category: "stock", fallback: 245.0 },
-  { symbol: "MSFT", yahooSymbol: "MSFT", name: "Microsoft", icon: "💻", category: "stock", fallback: 425.0 },
-  { symbol: "NVDA", yahooSymbol: "NVDA", name: "NVIDIA", icon: "🎮", category: "stock", fallback: 118.0 },
+  { symbol: "XAUUSD", tradingViewSymbol: "OANDA:XAUUSD", scanner: "cfd", name: "Gold Spot", icon: "🥇", category: "metal" },
+  { symbol: "XAGUSD", tradingViewSymbol: "TVC:SILVER", scanner: "cfd", name: "Silver Spot", icon: "🥈", category: "metal" },
+  { symbol: "EURUSD", tradingViewSymbol: "FX:EURUSD", scanner: "forex", name: "Euro / US Dollar", icon: "💶", category: "forex" },
+  { symbol: "GBPUSD", tradingViewSymbol: "FX:GBPUSD", scanner: "forex", name: "British Pound / USD", icon: "💷", category: "forex" },
+  { symbol: "USDJPY", tradingViewSymbol: "FX:USDJPY", scanner: "forex", name: "US Dollar / Yen", icon: "💴", category: "forex" },
+  { symbol: "AUDUSD", tradingViewSymbol: "FX:AUDUSD", scanner: "forex", name: "Australian Dollar / USD", icon: "🇦🇺", category: "forex" },
+  { symbol: "USDCAD", tradingViewSymbol: "FX:USDCAD", scanner: "forex", name: "US Dollar / Canadian", icon: "🇨🇦", category: "forex" },
+  { symbol: "USDCHF", tradingViewSymbol: "FX:USDCHF", scanner: "forex", name: "US Dollar / Swiss Franc", icon: "🇨🇭", category: "forex" },
+  { symbol: "AAPL", tradingViewSymbol: "NASDAQ:AAPL", scanner: "america", name: "Apple Inc.", icon: "🍎", category: "stock" },
+  { symbol: "TSLA", tradingViewSymbol: "NASDAQ:TSLA", scanner: "america", name: "Tesla Inc.", icon: "🚗", category: "stock" },
+  { symbol: "MSFT", tradingViewSymbol: "NASDAQ:MSFT", scanner: "america", name: "Microsoft", icon: "💻", category: "stock" },
+  { symbol: "NVDA", tradingViewSymbol: "NASDAQ:NVDA", scanner: "america", name: "NVIDIA", icon: "🎮", category: "stock" },
 ];
 
 export type ForexRow = {
@@ -35,87 +35,77 @@ export type ForexRow = {
   icon: string;
 };
 
-type YahooChartResponse = {
-  chart?: {
-    result?: Array<{
-      meta?: {
-        regularMarketPrice?: number;
-        chartPreviousClose?: number;
-        previousClose?: number;
-        regularMarketDayHigh?: number;
-        regularMarketDayLow?: number;
-        regularMarketVolume?: number;
-      };
-    }>;
-  };
+type TradingViewScanResponse = {
+  data?: Array<{
+    s: string;
+    d: [number | null, number | null, number | null];
+  }>;
 };
 
 let cache: { ts: number; data: ForexRow[] } | null = null;
-const CACHE_MS = 15_000;
+const CACHE_MS = 5_000;
 
-async function fetchYahooQuote(yahooSymbol: string): Promise<{ price: number; prevClose: number; volume: number } | null> {
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSymbol)}?interval=1d&range=2d`;
-  try {
-    const resp = await fetch(url, {
-      headers: {
-        Accept: "application/json",
-        "User-Agent":
-          "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
-      },
-      signal: AbortSignal.timeout(7000),
-    });
-    if (!resp.ok) return null;
-    const json = (await resp.json()) as YahooChartResponse;
-    const meta = json.chart?.result?.[0]?.meta;
-    if (!meta || typeof meta.regularMarketPrice !== "number") return null;
-    return {
-      price: meta.regularMarketPrice,
-      prevClose: meta.chartPreviousClose ?? meta.previousClose ?? meta.regularMarketPrice,
-      volume: meta.regularMarketVolume ?? 0,
-    };
-  } catch {
-    return null;
-  }
+async function fetchTradingViewQuotes(scanner: ForexAsset["scanner"], symbols: string[]) {
+  const resp = await fetch(`https://scanner.tradingview.com/${scanner}/scan`, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      symbols: { tickers: symbols, query: { types: [] } },
+      columns: ["close", "change", "volume"],
+    }),
+    signal: AbortSignal.timeout(7000),
+  });
+  if (!resp.ok) throw new Error(`TradingView ${scanner} scanner returned ${resp.status}`);
+  const json = (await resp.json()) as TradingViewScanResponse;
+  return new Map((json.data ?? []).map((row) => [row.s, row.d]));
 }
 
 export async function fetchForexPrices(req: Request): Promise<ForexRow[]> {
   const now = Date.now();
   if (cache && now - cache.ts < CACHE_MS) return cache.data;
 
-  const results = await Promise.all(
-    FOREX_ASSETS.map(async (a) => {
-      const live = await fetchYahooQuote(a.yahooSymbol);
-      if (!live) {
-        req.log.warn({ symbol: a.symbol }, "forex live fetch failed, using fallback");
-        const price = a.fallback;
-        return {
-          symbol: a.symbol,
-          name: a.name,
-          price,
-          change24h: 0,
-          changePercent24h: 0,
-          volume24h: 0,
-          marketCap: 0,
-          icon: a.icon,
-        } satisfies ForexRow;
+  try {
+    const scanners = ["forex", "cfd", "america"] as const;
+    const quoteGroups = await Promise.all(
+      scanners.map(async (scanner) => [
+        scanner,
+        await fetchTradingViewQuotes(
+          scanner,
+          FOREX_ASSETS.filter((asset) => asset.scanner === scanner).map((asset) => asset.tradingViewSymbol),
+        ),
+      ] as const),
+    );
+    const quotes = new Map(quoteGroups);
+    const results = FOREX_ASSETS.map((asset) => {
+      const quote = quotes.get(asset.scanner)?.get(asset.tradingViewSymbol);
+      const [price, changePercent, volume] = quote ?? [];
+      if (typeof price !== "number" || typeof changePercent !== "number") {
+        throw new Error(`TradingView quote missing for ${asset.tradingViewSymbol}`);
       }
-      const change = live.price - live.prevClose;
-      const changePct = live.prevClose ? (change / live.prevClose) * 100 : 0;
+      const previousClose = price / (1 + changePercent / 100);
       return {
-        symbol: a.symbol,
-        name: a.name,
-        price: live.price,
-        change24h: change,
-        changePercent24h: changePct,
-        volume24h: live.volume,
+        symbol: asset.symbol,
+        name: asset.name,
+        price,
+        change24h: price - previousClose,
+        changePercent24h: changePercent,
+        volume24h: typeof volume === "number" ? volume : 0,
         marketCap: 0,
-        icon: a.icon,
+        icon: asset.icon,
       } satisfies ForexRow;
-    })
-  );
-
-  cache = { ts: now, data: results };
-  return results;
+    });
+    cache = { ts: now, data: results };
+    return results;
+  } catch (error) {
+    if (cache) {
+      req.log.warn({ err: error }, "live TradingView fetch failed, serving last exact quote");
+      return cache.data;
+    }
+    throw error;
+  }
 }
 
 export function getForexAssetPrice(symbol: string): { price: number; name: string } | null {
