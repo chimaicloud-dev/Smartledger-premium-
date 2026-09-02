@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import crypto from "node:crypto";
 import { db } from "@workspace/db";
 import { usersTable, passwordResetTokensTable } from "@workspace/db";
-import { eq, and, gt, isNull } from "drizzle-orm";
+import { eq, and, gt, isNull, sql } from "drizzle-orm";
 import { RegisterBody, LoginBody, SubmitKycBody } from "@workspace/api-zod";
 import { sendWelcomeEmail, sendPasswordResetEmail, notifyAdminNewUser, notifyAdminKycSubmitted } from "../lib/email";
 import { encryptKycIdNumber } from "../lib/kyc-id-crypto";
@@ -15,6 +15,21 @@ declare module "express-session" {
 }
 
 const router: IRouter = Router();
+
+function referralCode(): string {
+  return `SL${crypto.randomBytes(8).toString("hex").toUpperCase()}`;
+}
+function isReferralCodeCollision(error: unknown): boolean {
+  return error instanceof Error && /users_referral_code(?:_lower)?_unique/.test(error.message);
+}
+
+function userResponse(user: typeof usersTable.$inferSelect) {
+  return {
+    id: user.id, email: user.email, name: user.name, experience: user.experience,
+    usdBalance: user.usdBalance, kycStatus: user.kycStatus, role: user.role,
+    status: user.status, referralCode: user.referralCode, createdAt: user.createdAt.toISOString(),
+  };
+}
 
 function validateDeviceTimezone(timezone?: string): string | undefined {
   if (!timezone) return undefined;
@@ -29,7 +44,7 @@ router.post("/register", async (req, res) => {
     return;
   }
 
-  const { email, password, name, phone, country, dateOfBirth, timezone } = parsed.data;
+  const { email, password, name, phone, country, dateOfBirth, timezone, referralCode: suppliedReferralCode } = parsed.data;
   let deviceTimezone: string | undefined;
   try {
     deviceTimezone = validateDeviceTimezone(timezone);
@@ -51,17 +66,30 @@ router.post("/register", async (req, res) => {
   }
 
   const hashedPassword = await bcrypt.hash(password, 10);
-  const [user] = await db.insert(usersTable).values({
-    email,
-    password: hashedPassword,
-    name,
-    phone,
-    country,
-    dateOfBirth,
-    timezone: deviceTimezone,
-    experience: "beginner",
-    usdBalance: 0,
-  }).returning();
+  let referredByUserId: number | undefined;
+  if (suppliedReferralCode) {
+    const [referrer] = await db.select({ id: usersTable.id })
+      .from(usersTable)
+      .where(sql`lower(${usersTable.referralCode}) = lower(${suppliedReferralCode.trim()})`).limit(1);
+    if (!referrer) {
+      res.status(400).json({ error: "Invalid referral code" });
+      return;
+    }
+    referredByUserId = referrer.id;
+  }
+  let user: typeof usersTable.$inferSelect | undefined;
+  for (let attempts = 0; attempts < 3 && !user; attempts++) {
+    try {
+      const [created] = await db.insert(usersTable).values({
+        email, password: hashedPassword, name, phone, country, dateOfBirth, timezone: deviceTimezone,
+        experience: "beginner", usdBalance: 0, referralCode: referralCode(), referredByUserId,
+      }).returning();
+      user = created;
+    } catch (error) {
+      if (!isReferralCodeCollision(error) || attempts === 2) throw error;
+    }
+  }
+  if (!user) throw new Error("Could not allocate a referral code");
 
   req.session.userId = user.id;
 
@@ -69,17 +97,7 @@ router.post("/register", async (req, res) => {
   notifyAdminNewUser(user.name);
 
   res.status(201).json({
-    user: {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      experience: user.experience,
-      usdBalance: user.usdBalance,
-      kycStatus: user.kycStatus,
-      role: user.role,
-      status: user.status,
-      createdAt: user.createdAt.toISOString(),
-    },
+    user: userResponse(user),
     message: "Registration successful",
   });
 });
@@ -130,17 +148,7 @@ router.post("/login", async (req, res) => {
   req.session.userId = authenticatedUser.id;
 
   res.json({
-    user: {
-      id: authenticatedUser.id,
-      email: authenticatedUser.email,
-      name: authenticatedUser.name,
-      experience: authenticatedUser.experience,
-      usdBalance: authenticatedUser.usdBalance,
-      kycStatus: authenticatedUser.kycStatus,
-      role: authenticatedUser.role,
-      status: authenticatedUser.status,
-      createdAt: authenticatedUser.createdAt.toISOString(),
-    },
+    user: userResponse(authenticatedUser),
     message: "Login successful",
   });
 });
@@ -162,17 +170,7 @@ router.get("/me", async (req, res) => {
     return;
   }
 
-  res.json({
-    id: user.id,
-    email: user.email,
-    name: user.name,
-    experience: user.experience,
-    usdBalance: user.usdBalance,
-    kycStatus: user.kycStatus,
-    role: user.role,
-    status: user.status,
-    createdAt: user.createdAt.toISOString(),
-  });
+  res.json(userResponse(user));
 });
 
 router.post("/kyc/verify", async (req, res) => {
@@ -230,17 +228,7 @@ router.post("/kyc/verify", async (req, res) => {
 
   notifyAdminKycSubmitted(updated.name);
 
-  res.json({
-    id: updated.id,
-    email: updated.email,
-    name: updated.name,
-    experience: updated.experience,
-    usdBalance: updated.usdBalance,
-    kycStatus: updated.kycStatus,
-    role: updated.role,
-    status: updated.status,
-    createdAt: updated.createdAt.toISOString(),
-  });
+  res.json(userResponse(updated));
 });
 
 // ---------- Change Password ----------

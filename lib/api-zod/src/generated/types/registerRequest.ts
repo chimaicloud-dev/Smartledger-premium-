@@ -15,4 +15,9 @@ export interface RegisterRequest {
   dateOfBirth: string;
   /** Current IANA timezone reported by the user's device, such as Africa/Lagos. */
   timezone?: string;
+  /**
+   * @minLength 3
+   * @maxLength 64
+   */
+  referralCode?: string;
 }

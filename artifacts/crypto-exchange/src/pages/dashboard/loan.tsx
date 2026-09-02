@@ -5,8 +5,12 @@ import { formatCurrency } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import {
   Landmark, CheckCircle2, AlertCircle, Clock, TrendingDown,
-  ShieldCheck, Percent, ChevronRight, Info, BadgeDollarSign, X
+  ShieldCheck, Percent, Info, BadgeDollarSign, X, ChevronDown, Check, XCircle
 } from "lucide-react";
+import { useGetLoans, useCreateLoan, useRepayLoan } from "@workspace/api-client-react";
+import { apiErrorMessage } from "@/lib/api-error";
+import { useQueryClient } from "@tanstack/react-query";
+import { getGetLoansQueryKey } from "@workspace/api-client-react";
 
 const LOAN_PLANS = [
   {
@@ -93,15 +97,32 @@ function calcSchedule(amount: number, apr: number, days: number) {
 
 export default function LoanPage() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const { data: serverLoans, isLoading: loadingLoans } = useGetLoans();
+  const createLoanMutation = useCreateLoan();
+  const repayLoanMutation = useRepayLoan();
+
   const [selectedPlan, setSelectedPlan] = useState(LOAN_PLANS[1]);
   const [loanAmount, setLoanAmount] = useState(5000);
   const [termDays, setTermDays] = useState(30);
   const [collateral, setCollateral] = useState(COLLATERAL[0]);
-  const [activeLoans, setActiveLoans] = useState<ActiveLoan[]>([]);
   const [success, setSuccess] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [repayId, setRepayId] = useState<string | null>(null);
+  const [repayId, setRepayId] = useState<number | null>(null);
   const [error, setError] = useState("");
+
+  const [appDetails, setAppDetails] = useState({
+    fullName: user?.name || "",
+    dateOfBirth: "",
+    country: "",
+    residentialAddress: "",
+    phone: "",
+    idType: "national_id" as "national_id" | "drivers_license" | "passport",
+    idNumber: "",
+    employmentStatus: "",
+    monthlyIncome: "",
+    purpose: "",
+  });
 
   const { repay, perPeriod, periods, label } = calcSchedule(loanAmount, selectedPlan.apr, termDays);
   const dailyInterest = +(loanAmount * (selectedPlan.apr / 100) / 365).toFixed(4);
@@ -117,33 +138,68 @@ export default function LoanPage() {
       setError(`Loan amount must be between ${formatCurrency(min)} and ${formatCurrency(max)}.`);
       return;
     }
+    if (!appDetails.fullName || !appDetails.dateOfBirth || !appDetails.country ||
+        !appDetails.residentialAddress || !appDetails.phone || !appDetails.idNumber ||
+        !appDetails.employmentStatus || !appDetails.monthlyIncome || !appDetails.purpose) {
+      setError("Please fill out all applicant details before confirming.");
+      return;
+    }
     setConfirmOpen(true);
   };
 
-  const handleConfirm = () => {
-    const now = new Date();
-    const due = new Date(now);
-    due.setDate(due.getDate() + termDays);
-    const loan: ActiveLoan = {
-      id: Math.random().toString(36).slice(2, 8).toUpperCase(),
-      plan: selectedPlan.label,
-      amount: loanAmount,
-      apr: selectedPlan.apr,
-      termDays,
-      startDate: now.toLocaleDateString(),
-      repayAmount: repay,
-      collateral: collateral.label,
-      dueDate: due.toLocaleDateString(),
-    };
-    setActiveLoans(prev => [loan, ...prev]);
-    setConfirmOpen(false);
-    setSuccess(true);
-    setTimeout(() => setSuccess(false), 4000);
+  const handleConfirm = async () => {
+    try {
+      setError("");
+      await createLoanMutation.mutateAsync({
+        data: {
+          planId: selectedPlan.id,
+          amount: loanAmount,
+          termDays,
+          collateralSymbol: collateral.id,
+          fullName: appDetails.fullName,
+          dateOfBirth: appDetails.dateOfBirth,
+          country: appDetails.country,
+          residentialAddress: appDetails.residentialAddress,
+          phone: appDetails.phone,
+          idType: appDetails.idType,
+          idNumber: appDetails.idNumber,
+          employmentStatus: appDetails.employmentStatus,
+          monthlyIncome: Number(appDetails.monthlyIncome),
+          purpose: appDetails.purpose
+        }
+      });
+      queryClient.invalidateQueries({ queryKey: getGetLoansQueryKey() });
+      setConfirmOpen(false);
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 4000);
+
+      // Reset form
+      setAppDetails({
+        fullName: user?.name || "",
+        dateOfBirth: "",
+        country: "",
+        residentialAddress: "",
+        phone: "",
+        idType: "national_id",
+        idNumber: "",
+        employmentStatus: "",
+        monthlyIncome: "",
+        purpose: "",
+      });
+    } catch (err: any) {
+      setError(apiErrorMessage(err, "Failed to submit loan application"));
+      setConfirmOpen(false);
+    }
   };
 
-  const handleRepay = (id: string) => {
-    setActiveLoans(prev => prev.filter(l => l.id !== id));
-    setRepayId(null);
+  const handleRepay = async (id: number) => {
+    try {
+      await repayLoanMutation.mutateAsync({ id });
+      queryClient.invalidateQueries({ queryKey: getGetLoansQueryKey() });
+      setRepayId(null);
+    } catch (err: any) {
+      setError(apiErrorMessage(err, "Failed to repay loan"));
+    }
   };
 
   return (
@@ -167,7 +223,7 @@ export default function LoanPage() {
                 ["Term", `${termDays} days`],
                 ["Collateral", collateral.label],
                 ["Total Repayment", formatCurrency(repay)],
-                ["Due Date", (() => { const d = new Date(); d.setDate(d.getDate() + termDays); return d.toLocaleDateString(); })()],
+                ["Estimated Due Date", `${termDays} days after approval`],
               ].map(([k, v]) => (
                 <div key={k} className="flex justify-between">
                   <span className="text-muted-foreground">{k}</span>
@@ -177,14 +233,14 @@ export default function LoanPage() {
             </div>
             <div className="flex items-start gap-2 bg-yellow-500/5 border border-yellow-500/20 rounded-xl p-3 text-xs text-muted-foreground">
               <Info className="w-4 h-4 text-yellow-400 shrink-0 mt-0.5" />
-              By confirming, you agree to repay {formatCurrency(repay)} by the due date. Failure to repay may result in collateral liquidation.
+              By confirming, you agree to the loan terms. Submitting an application does not guarantee approval. Funds will be disbursed upon successful review.
             </div>
             <div className="flex gap-3 pt-1">
-              <button onClick={() => setConfirmOpen(false)} className="flex-1 py-3 rounded-xl border border-border text-sm font-semibold hover:bg-secondary transition-colors">
+              <button onClick={() => setConfirmOpen(false)} disabled={createLoanMutation.isPending} className="flex-1 py-3 rounded-xl border border-border text-sm font-semibold hover:bg-secondary transition-colors">
                 Cancel
               </button>
-              <button onClick={handleConfirm} className="flex-1 py-3 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:bg-primary/90 transition-colors">
-                Confirm Loan
+              <button onClick={handleConfirm} disabled={createLoanMutation.isPending} className="flex-1 py-3 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:bg-primary/90 transition-colors disabled:opacity-50">
+                {createLoanMutation.isPending ? "Submitting..." : "Confirm Application"}
               </button>
             </div>
           </div>
@@ -197,19 +253,24 @@ export default function LoanPage() {
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setRepayId(null)} />
           <div className="relative bg-card border border-border rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-2xl">
             {(() => {
-              const loan = activeLoans.find(l => l.id === repayId);
+              const loan = serverLoans?.find(l => l.id === repayId);
               if (!loan) return null;
               return (
                 <>
                   <h3 className="font-bold text-foreground text-lg">Repay Loan #{loan.id}</h3>
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between"><span className="text-muted-foreground">Original Amount</span><span className="font-semibold">{formatCurrency(loan.amount)}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Total Repayment</span><span className="font-bold text-foreground">{formatCurrency(loan.repayAmount)}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Due Date</span><span className="font-semibold">{loan.dueDate}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Total Repayment</span><span className="font-bold text-foreground">{formatCurrency(loan.repaymentAmount)}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Due Date</span><span className="font-semibold">{loan.dueAt ? new Date(loan.dueAt).toLocaleDateString() : "N/A"}</span></div>
                   </div>
+                  {error && (
+                    <div className="text-xs text-red-400 bg-red-500/10 p-2 rounded">{error}</div>
+                  )}
                   <div className="flex gap-3 pt-1">
-                    <button onClick={() => setRepayId(null)} className="flex-1 py-3 rounded-xl border border-border text-sm font-semibold hover:bg-secondary transition-colors">Cancel</button>
-                    <button onClick={() => handleRepay(repayId)} className="flex-1 py-3 rounded-xl bg-green-500 text-white text-sm font-bold hover:bg-green-500/90 transition-colors">Repay Now</button>
+                    <button onClick={() => setRepayId(null)} disabled={repayLoanMutation.isPending} className="flex-1 py-3 rounded-xl border border-border text-sm font-semibold hover:bg-secondary transition-colors">Cancel</button>
+                    <button onClick={() => handleRepay(repayId)} disabled={repayLoanMutation.isPending} className="flex-1 py-3 rounded-xl bg-green-500 text-white text-sm font-bold hover:bg-green-500/90 transition-colors disabled:opacity-50">
+                      {repayLoanMutation.isPending ? "Processing..." : "Repay Now"}
+                    </button>
                   </div>
                 </>
               );
@@ -232,34 +293,58 @@ export default function LoanPage() {
         </div>
 
         {success && (
-          <div className="flex items-center gap-3 bg-green-500/10 border border-green-500/30 rounded-xl px-4 py-3 text-sm text-green-400 font-medium">
-            <CheckCircle2 className="w-4 h-4 shrink-0" /> Loan approved! Funds have been credited to your account.
+          <div className="flex items-center gap-3 bg-amber-500/10 border border-amber-500/30 rounded-xl px-4 py-3 text-sm text-amber-400 font-medium">
+            <CheckCircle2 className="w-4 h-4 shrink-0" /> Application submitted successfully! It is currently pending admin review.
           </div>
         )}
 
         {/* Active Loans */}
-        {activeLoans.length > 0 && (
+        {loadingLoans ? (
+          <div className="text-sm text-muted-foreground">Loading loans...</div>
+        ) : serverLoans && serverLoans.length > 0 && (
           <div className="space-y-3">
             <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse inline-block" /> Active Loans
+              <Landmark className="w-4 h-4" /> My Loan Applications
             </h2>
             <div className="space-y-3">
-              {activeLoans.map(loan => (
+              {serverLoans.map(loan => (
                 <div key={loan.id} className="bg-card border border-border rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center gap-4">
                   <div className="flex-1 space-y-2">
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-bold bg-primary/15 text-primary border border-primary/25 px-2 py-0.5 rounded-full">#{loan.id}</span>
-                      <span className="text-sm font-semibold text-foreground">{loan.plan}</span>
-                      <span className="text-xs text-green-400 font-medium flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" /> Active
-                      </span>
+                      <span className="text-sm font-semibold text-foreground">{loan.planName}</span>
+                      {loan.status === "pending" && (
+                        <span className="text-xs text-amber-400 font-medium flex items-center gap-1">
+                          <Clock className="w-3 h-3" /> Pending Review
+                        </span>
+                      )}
+                      {loan.status === "approved" && (
+                        <span className="text-xs text-green-400 font-medium flex items-center gap-1">
+                          <Check className="w-3 h-3" /> Approved
+                        </span>
+                      )}
+                      {loan.status === "rejected" && (
+                        <span className="text-xs text-red-400 font-medium flex items-center gap-1">
+                          <XCircle className="w-3 h-3" /> Rejected
+                        </span>
+                      )}
+                      {loan.status === "repaid" && (
+                        <span className="text-xs text-blue-400 font-medium flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3" /> Repaid
+                        </span>
+                      )}
                     </div>
+                    {loan.status === "rejected" && loan.rejectionReason && (
+                      <div className="text-xs text-red-400/80 bg-red-500/10 p-2 rounded border border-red-500/20">
+                        Reason: {loan.rejectionReason}
+                      </div>
+                    )}
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                       {[
                         ["Borrowed", formatCurrency(loan.amount)],
-                        ["Repayment", formatCurrency(loan.repayAmount)],
+                        ["Repayment", formatCurrency(loan.repaymentAmount)],
                         ["APR", `${loan.apr}%`],
-                        ["Due", loan.dueDate],
+                        ["Due", loan.dueAt ? new Date(loan.dueAt).toLocaleDateString() : "Pending"],
                       ].map(([k, v]) => (
                         <div key={k}>
                           <p className="text-muted-foreground">{k}</p>
@@ -267,14 +352,16 @@ export default function LoanPage() {
                         </div>
                       ))}
                     </div>
-                    <p className="text-xs text-muted-foreground">Collateral: <span className="text-foreground font-medium">{loan.collateral}</span></p>
+                    <p className="text-xs text-muted-foreground">Collateral: <span className="text-foreground font-medium">{loan.collateralSymbol.toUpperCase()}</span></p>
                   </div>
-                  <button
-                    onClick={() => setRepayId(loan.id)}
-                    className="shrink-0 px-4 py-2.5 rounded-xl bg-green-500/10 border border-green-500/30 text-green-400 text-sm font-bold hover:bg-green-500/20 transition-all"
-                  >
-                    Repay Loan
-                  </button>
+                  {loan.status === "approved" && (
+                    <button
+                      onClick={() => setRepayId(loan.id)}
+                      className="shrink-0 px-4 py-2.5 rounded-xl bg-green-500/10 border border-green-500/30 text-green-400 text-sm font-bold hover:bg-green-500/20 transition-all"
+                    >
+                      Repay Loan
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -388,6 +475,121 @@ export default function LoanPage() {
                     <span className="text-[10px] text-muted-foreground">{c.ltv}% LTV</span>
                   </button>
                 ))}
+              </div>
+            </div>
+
+            <div className="space-y-4 pt-4 border-t border-border">
+              <h3 className="font-bold text-sm text-foreground">Applicant Details</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground">Full Legal Name</label>
+                  <input
+                    type="text"
+                    value={appDetails.fullName}
+                    onChange={(e) => setAppDetails(prev => ({ ...prev, fullName: e.target.value }))}
+                    className="w-full px-3 py-2 bg-secondary/50 border border-border rounded-lg text-sm focus:outline-none focus:border-primary/50"
+                    placeholder="John Doe"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground">Date of Birth</label>
+                  <input
+                    type="date"
+                    value={appDetails.dateOfBirth}
+                    onChange={(e) => setAppDetails(prev => ({ ...prev, dateOfBirth: e.target.value }))}
+                    className="w-full px-3 py-2 bg-secondary/50 border border-border rounded-lg text-sm focus:outline-none focus:border-primary/50"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground">Country</label>
+                  <input
+                    type="text"
+                    value={appDetails.country}
+                    onChange={(e) => setAppDetails(prev => ({ ...prev, country: e.target.value }))}
+                    className="w-full px-3 py-2 bg-secondary/50 border border-border rounded-lg text-sm focus:outline-none focus:border-primary/50"
+                    placeholder="United States"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground">Phone Number</label>
+                  <input
+                    type="tel"
+                    value={appDetails.phone}
+                    onChange={(e) => setAppDetails(prev => ({ ...prev, phone: e.target.value }))}
+                    className="w-full px-3 py-2 bg-secondary/50 border border-border rounded-lg text-sm focus:outline-none focus:border-primary/50"
+                    placeholder="+1 555-0123"
+                  />
+                </div>
+                <div className="space-y-1.5 sm:col-span-2">
+                  <label className="text-xs font-semibold text-muted-foreground">Residential Address</label>
+                  <input
+                    type="text"
+                    value={appDetails.residentialAddress}
+                    onChange={(e) => setAppDetails(prev => ({ ...prev, residentialAddress: e.target.value }))}
+                    className="w-full px-3 py-2 bg-secondary/50 border border-border rounded-lg text-sm focus:outline-none focus:border-primary/50"
+                    placeholder="123 Main St, City, State, ZIP"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground">ID Type</label>
+                  <div className="relative">
+                    <select
+                      value={appDetails.idType}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === "national_id" || val === "drivers_license" || val === "passport") {
+                          setAppDetails(prev => ({ ...prev, idType: val }));
+                        }
+                      }}
+                      className="w-full px-3 py-2 bg-secondary/50 border border-border rounded-lg text-sm appearance-none focus:outline-none focus:border-primary/50"
+                    >
+                      <option value="national_id">National ID</option>
+                      <option value="drivers_license">Driver's License</option>
+                      <option value="passport">Passport</option>
+                    </select>
+                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground">ID Number</label>
+                  <input
+                    type="text"
+                    value={appDetails.idNumber}
+                    onChange={(e) => setAppDetails(prev => ({ ...prev, idNumber: e.target.value }))}
+                    className="w-full px-3 py-2 bg-secondary/50 border border-border rounded-lg text-sm focus:outline-none focus:border-primary/50"
+                    placeholder="Document Number"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground">Employment Status</label>
+                  <input
+                    type="text"
+                    value={appDetails.employmentStatus}
+                    onChange={(e) => setAppDetails(prev => ({ ...prev, employmentStatus: e.target.value }))}
+                    className="w-full px-3 py-2 bg-secondary/50 border border-border rounded-lg text-sm focus:outline-none focus:border-primary/50"
+                    placeholder="Employed, Self-employed, etc."
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground">Monthly Income (USD)</label>
+                  <input
+                    type="number"
+                    value={appDetails.monthlyIncome}
+                    onChange={(e) => setAppDetails(prev => ({ ...prev, monthlyIncome: e.target.value }))}
+                    className="w-full px-3 py-2 bg-secondary/50 border border-border rounded-lg text-sm focus:outline-none focus:border-primary/50"
+                    placeholder="5000"
+                    min="0"
+                  />
+                </div>
+                <div className="space-y-1.5 sm:col-span-2">
+                  <label className="text-xs font-semibold text-muted-foreground">Loan Purpose</label>
+                  <textarea
+                    value={appDetails.purpose}
+                    onChange={(e) => setAppDetails(prev => ({ ...prev, purpose: e.target.value }))}
+                    className="w-full px-3 py-2 bg-secondary/50 border border-border rounded-lg text-sm focus:outline-none focus:border-primary/50 min-h-[80px] resize-none"
+                    placeholder="Briefly describe what you will use this loan for..."
+                  />
+                </div>
               </div>
             </div>
 

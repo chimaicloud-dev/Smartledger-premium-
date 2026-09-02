@@ -47,6 +47,11 @@ const registerSchema = z.object({
   }, "You must be at least 18 years old"),
   password: z.string().min(8, "At least 8 characters"),
   confirmPassword: z.string(),
+  referralCode: z.string()
+    .trim()
+    .max(64, "Referral code is too long")
+    .refine((value) => value.length === 0 || value.length >= 3, "Referral code must be at least 3 characters")
+    .optional(),
 }).refine((d) => d.password === d.confirmPassword, {
   message: "Passwords do not match",
   path: ["confirmPassword"],
@@ -61,13 +66,20 @@ export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState(0);
 
+  const [location] = useLocation();
+  const searchParams = new URLSearchParams(window.location.search);
+  const refCode = searchParams.get("ref");
+
   const { register, handleSubmit, trigger, formState: { errors } } = useForm<RegisterForm>({
     resolver: zodResolver(registerSchema),
     mode: "onChange",
+    defaultValues: {
+      referralCode: refCode || "",
+    }
   });
 
   const stepFields: (keyof RegisterForm)[][] = [
-    ["name", "email"],
+    ["name", "email", "referralCode"],
     ["phone", "country", "dateOfBirth"],
     ["password", "confirmPassword"],
   ];
@@ -80,9 +92,10 @@ export default function RegisterPage() {
   const onSubmit = async (data: RegisterForm) => {
     try {
       setError(null);
-      const { confirmPassword, ...payload } = data;
+      const { confirmPassword, referralCode, ...payload } = data;
       await registerUser({
         ...payload,
+        ...(referralCode ? { referralCode } : {}),
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       });
     } catch (err: any) {
@@ -141,6 +154,11 @@ export default function RegisterPage() {
                     <label className="text-sm font-medium text-foreground ml-1">Email Address</label>
                     <Input {...register("email")} type="email" placeholder="john@example.com" />
                     {errors.email && <p className="text-destructive text-sm ml-1">{errors.email.message}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground ml-1">Referral Code (Optional)</label>
+                    <Input {...register("referralCode")} placeholder="Enter referral code if you have one" />
+                    {errors.referralCode && <p className="text-destructive text-sm ml-1">{errors.referralCode.message}</p>}
                   </div>
                 </motion.div>
               )}

@@ -26,6 +26,11 @@ export interface RegisterRequest {
   dateOfBirth: string;
   /** Current IANA timezone reported by the user's device, such as Africa/Lagos. */
   timezone?: string;
+  /**
+   * @minLength 3
+   * @maxLength 64
+   */
+  referralCode?: string;
 }
 
 export interface LoginRequest {
@@ -68,11 +73,150 @@ export interface User {
   role: UserRole;
   status: UserStatus;
   createdAt: string;
+  referralCode: string;
 }
 
 export interface AuthResponse {
   user: User;
   message: string;
+}
+
+export interface ReferralSummary {
+  referralCode: string;
+  referralCount: number;
+  referralEarnings: number;
+}
+
+export type LoanApplicationInputIdType =
+  (typeof LoanApplicationInputIdType)[keyof typeof LoanApplicationInputIdType];
+
+export const LoanApplicationInputIdType = {
+  national_id: "national_id",
+  drivers_license: "drivers_license",
+  passport: "passport",
+} as const;
+
+export interface LoanApplicationInput {
+  /**
+   * @minLength 1
+   * @maxLength 64
+   */
+  planId: string;
+  /** @exclusiveMinimum 0 */
+  amount: number;
+  /** @minimum 1 */
+  termDays: number;
+  /**
+   * @minLength 2
+   * @maxLength 12
+   */
+  collateralSymbol: string;
+  /**
+   * @minLength 2
+   * @maxLength 120
+   */
+  fullName: string;
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  dateOfBirth: string;
+  /**
+   * @minLength 2
+   * @maxLength 80
+   */
+  country: string;
+  /**
+   * @minLength 8
+   * @maxLength 300
+   */
+  residentialAddress: string;
+  /**
+   * @minLength 5
+   * @maxLength 40
+   */
+  phone: string;
+  idType: LoanApplicationInputIdType;
+  /**
+   * @minLength 3
+   * @maxLength 100
+   */
+  idNumber: string;
+  /**
+   * @minLength 2
+   * @maxLength 80
+   */
+  employmentStatus: string;
+  /** @exclusiveMinimum 0 */
+  monthlyIncome: number;
+  /**
+   * @minLength 3
+   * @maxLength 500
+   */
+  purpose: string;
+}
+
+export interface LoanRejectionInput {
+  /**
+   * @minLength 3
+   * @maxLength 500
+   */
+  reason: string;
+}
+
+export type LoanStatus = (typeof LoanStatus)[keyof typeof LoanStatus];
+
+export const LoanStatus = {
+  pending: "pending",
+  approved: "approved",
+  rejected: "rejected",
+  repaid: "repaid",
+} as const;
+
+export interface Loan {
+  id: number;
+  planId: string;
+  planName: string;
+  amount: number;
+  apr: number;
+  termDays: number;
+  collateralSymbol: string;
+  repaymentAmount: number;
+  status: LoanStatus;
+  requestedAt: string;
+  /** @nullable */
+  approvedAt: string | null;
+  /** @nullable */
+  dueAt: string | null;
+  /** @nullable */
+  repaidAt: string | null;
+  /** @nullable */
+  rejectionReason: string | null;
+}
+
+export type AdminLoanIdType =
+  (typeof AdminLoanIdType)[keyof typeof AdminLoanIdType];
+
+export const AdminLoanIdType = {
+  national_id: "national_id",
+  drivers_license: "drivers_license",
+  passport: "passport",
+} as const;
+
+export type AdminLoan = Loan & {
+  userId: number;
+  fullName: string;
+  dateOfBirth: string;
+  country: string;
+  residentialAddress: string;
+  phone: string;
+  idType: AdminLoanIdType;
+  employmentStatus: string;
+  monthlyIncome: number;
+  purpose: string;
+  /** @nullable */
+  reviewedByUserId: number | null;
+};
+
+export interface AdminLoanIdNumber {
+  idNumber: string;
 }
 
 export interface AdminStats {
@@ -322,6 +466,7 @@ export interface Holding {
 export interface Portfolio {
   usdBalance: number;
   totalValue: number;
+  pendingDeposits: number;
   holdings: Holding[];
 }
 

@@ -17,6 +17,9 @@ export const HealthCheckResponse = zod.object({
 /**
  * @summary Register a new user
  */
+export const registerBodyReferralCodeMin = 3;
+export const registerBodyReferralCodeMax = 64;
+
 export const RegisterBody = zod.object({
   email: zod.string(),
   password: zod.string(),
@@ -30,6 +33,11 @@ export const RegisterBody = zod.object({
     .describe(
       "Current IANA timezone reported by the user's device, such as Africa\/Lagos.",
     ),
+  referralCode: zod
+    .string()
+    .min(registerBodyReferralCodeMin)
+    .max(registerBodyReferralCodeMax)
+    .optional(),
 });
 
 /**
@@ -57,6 +65,7 @@ export const LoginResponse = zod.object({
     role: zod.enum(["user", "admin"]),
     status: zod.enum(["active", "suspended"]),
     createdAt: zod.string(),
+    referralCode: zod.string(),
   }),
   message: zod.string(),
 });
@@ -81,6 +90,7 @@ export const GetMeResponse = zod.object({
   role: zod.enum(["user", "admin"]),
   status: zod.enum(["active", "suspended"]),
   createdAt: zod.string(),
+  referralCode: zod.string(),
 });
 
 /**
@@ -136,6 +146,7 @@ export const SubmitKycResponse = zod.object({
   role: zod.enum(["user", "admin"]),
   status: zod.enum(["active", "suspended"]),
   createdAt: zod.string(),
+  referralCode: zod.string(),
 });
 
 /**
@@ -144,6 +155,7 @@ export const SubmitKycResponse = zod.object({
 export const GetPortfolioResponse = zod.object({
   usdBalance: zod.number(),
   totalValue: zod.number(),
+  pendingDeposits: zod.number(),
   holdings: zod.array(
     zod.object({
       coin: zod.string(),
@@ -156,6 +168,276 @@ export const GetPortfolioResponse = zod.object({
       pnlPercent: zod.number(),
     }),
   ),
+});
+
+/**
+ * @summary Get the current user's referral summary
+ */
+export const GetReferralSummaryResponse = zod.object({
+  referralCode: zod.string(),
+  referralCount: zod.number(),
+  referralEarnings: zod.number(),
+});
+
+/**
+ * @summary List the current user's loans
+ */
+export const GetLoansResponseItem = zod.object({
+  id: zod.number(),
+  planId: zod.string(),
+  planName: zod.string(),
+  amount: zod.number(),
+  apr: zod.number(),
+  termDays: zod.number(),
+  collateralSymbol: zod.string(),
+  repaymentAmount: zod.number(),
+  status: zod.enum(["pending", "approved", "rejected", "repaid"]),
+  requestedAt: zod.string(),
+  approvedAt: zod.string().nullable(),
+  dueAt: zod.string().nullable(),
+  repaidAt: zod.string().nullable(),
+  rejectionReason: zod.string().nullable(),
+});
+export const GetLoansResponse = zod.array(GetLoansResponseItem);
+
+/**
+ * @summary Submit a loan application
+ */
+export const createLoanBodyPlanIdMax = 64;
+
+export const createLoanBodyAmountExclusiveMin = 0;
+
+export const createLoanBodyCollateralSymbolMin = 2;
+export const createLoanBodyCollateralSymbolMax = 12;
+
+export const createLoanBodyFullNameMin = 2;
+export const createLoanBodyFullNameMax = 120;
+
+export const createLoanBodyDateOfBirthRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+export const createLoanBodyCountryMin = 2;
+export const createLoanBodyCountryMax = 80;
+
+export const createLoanBodyResidentialAddressMin = 8;
+export const createLoanBodyResidentialAddressMax = 300;
+
+export const createLoanBodyPhoneMin = 5;
+export const createLoanBodyPhoneMax = 40;
+
+export const createLoanBodyIdNumberMin = 3;
+export const createLoanBodyIdNumberMax = 100;
+
+export const createLoanBodyEmploymentStatusMin = 2;
+export const createLoanBodyEmploymentStatusMax = 80;
+
+export const createLoanBodyMonthlyIncomeExclusiveMin = 0;
+
+export const createLoanBodyPurposeMin = 3;
+export const createLoanBodyPurposeMax = 500;
+
+export const CreateLoanBody = zod.object({
+  planId: zod.string().min(1).max(createLoanBodyPlanIdMax),
+  amount: zod.number().gt(createLoanBodyAmountExclusiveMin),
+  termDays: zod.number().min(1),
+  collateralSymbol: zod
+    .string()
+    .min(createLoanBodyCollateralSymbolMin)
+    .max(createLoanBodyCollateralSymbolMax),
+  fullName: zod
+    .string()
+    .min(createLoanBodyFullNameMin)
+    .max(createLoanBodyFullNameMax),
+  dateOfBirth: zod.string().regex(createLoanBodyDateOfBirthRegExp),
+  country: zod
+    .string()
+    .min(createLoanBodyCountryMin)
+    .max(createLoanBodyCountryMax),
+  residentialAddress: zod
+    .string()
+    .min(createLoanBodyResidentialAddressMin)
+    .max(createLoanBodyResidentialAddressMax),
+  phone: zod.string().min(createLoanBodyPhoneMin).max(createLoanBodyPhoneMax),
+  idType: zod.enum(["national_id", "drivers_license", "passport"]),
+  idNumber: zod
+    .string()
+    .min(createLoanBodyIdNumberMin)
+    .max(createLoanBodyIdNumberMax),
+  employmentStatus: zod
+    .string()
+    .min(createLoanBodyEmploymentStatusMin)
+    .max(createLoanBodyEmploymentStatusMax),
+  monthlyIncome: zod.number().gt(createLoanBodyMonthlyIncomeExclusiveMin),
+  purpose: zod
+    .string()
+    .min(createLoanBodyPurposeMin)
+    .max(createLoanBodyPurposeMax),
+});
+
+/**
+ * @summary Repay an approved loan
+ */
+
+export const RepayLoanParams = zod.object({
+  id: zod.coerce.number().min(1),
+});
+
+export const RepayLoanResponse = zod.object({
+  id: zod.number(),
+  planId: zod.string(),
+  planName: zod.string(),
+  amount: zod.number(),
+  apr: zod.number(),
+  termDays: zod.number(),
+  collateralSymbol: zod.string(),
+  repaymentAmount: zod.number(),
+  status: zod.enum(["pending", "approved", "rejected", "repaid"]),
+  requestedAt: zod.string(),
+  approvedAt: zod.string().nullable(),
+  dueAt: zod.string().nullable(),
+  repaidAt: zod.string().nullable(),
+  rejectionReason: zod.string().nullable(),
+});
+
+/**
+ * @summary List loan applications
+ */
+export const GetAdminLoansResponseItem = zod
+  .object({
+    id: zod.number(),
+    planId: zod.string(),
+    planName: zod.string(),
+    amount: zod.number(),
+    apr: zod.number(),
+    termDays: zod.number(),
+    collateralSymbol: zod.string(),
+    repaymentAmount: zod.number(),
+    status: zod.enum(["pending", "approved", "rejected", "repaid"]),
+    requestedAt: zod.string(),
+    approvedAt: zod.string().nullable(),
+    dueAt: zod.string().nullable(),
+    repaidAt: zod.string().nullable(),
+    rejectionReason: zod.string().nullable(),
+  })
+  .and(
+    zod.object({
+      userId: zod.number(),
+      fullName: zod.string(),
+      dateOfBirth: zod.string(),
+      country: zod.string(),
+      residentialAddress: zod.string(),
+      phone: zod.string(),
+      idType: zod.enum(["national_id", "drivers_license", "passport"]),
+      employmentStatus: zod.string(),
+      monthlyIncome: zod.number(),
+      purpose: zod.string(),
+      reviewedByUserId: zod.number().nullable(),
+    }),
+  );
+export const GetAdminLoansResponse = zod.array(GetAdminLoansResponseItem);
+
+/**
+ * @summary Approve a pending loan
+ */
+
+export const ApproveAdminLoanParams = zod.object({
+  id: zod.coerce.number().min(1),
+});
+
+export const ApproveAdminLoanResponse = zod
+  .object({
+    id: zod.number(),
+    planId: zod.string(),
+    planName: zod.string(),
+    amount: zod.number(),
+    apr: zod.number(),
+    termDays: zod.number(),
+    collateralSymbol: zod.string(),
+    repaymentAmount: zod.number(),
+    status: zod.enum(["pending", "approved", "rejected", "repaid"]),
+    requestedAt: zod.string(),
+    approvedAt: zod.string().nullable(),
+    dueAt: zod.string().nullable(),
+    repaidAt: zod.string().nullable(),
+    rejectionReason: zod.string().nullable(),
+  })
+  .and(
+    zod.object({
+      userId: zod.number(),
+      fullName: zod.string(),
+      dateOfBirth: zod.string(),
+      country: zod.string(),
+      residentialAddress: zod.string(),
+      phone: zod.string(),
+      idType: zod.enum(["national_id", "drivers_license", "passport"]),
+      employmentStatus: zod.string(),
+      monthlyIncome: zod.number(),
+      purpose: zod.string(),
+      reviewedByUserId: zod.number().nullable(),
+    }),
+  );
+
+/**
+ * @summary Reject a pending loan
+ */
+
+export const RejectAdminLoanParams = zod.object({
+  id: zod.coerce.number().min(1),
+});
+
+export const rejectAdminLoanBodyReasonMin = 3;
+export const rejectAdminLoanBodyReasonMax = 500;
+
+export const RejectAdminLoanBody = zod.object({
+  reason: zod
+    .string()
+    .min(rejectAdminLoanBodyReasonMin)
+    .max(rejectAdminLoanBodyReasonMax),
+});
+
+export const RejectAdminLoanResponse = zod
+  .object({
+    id: zod.number(),
+    planId: zod.string(),
+    planName: zod.string(),
+    amount: zod.number(),
+    apr: zod.number(),
+    termDays: zod.number(),
+    collateralSymbol: zod.string(),
+    repaymentAmount: zod.number(),
+    status: zod.enum(["pending", "approved", "rejected", "repaid"]),
+    requestedAt: zod.string(),
+    approvedAt: zod.string().nullable(),
+    dueAt: zod.string().nullable(),
+    repaidAt: zod.string().nullable(),
+    rejectionReason: zod.string().nullable(),
+  })
+  .and(
+    zod.object({
+      userId: zod.number(),
+      fullName: zod.string(),
+      dateOfBirth: zod.string(),
+      country: zod.string(),
+      residentialAddress: zod.string(),
+      phone: zod.string(),
+      idType: zod.enum(["national_id", "drivers_license", "passport"]),
+      employmentStatus: zod.string(),
+      monthlyIncome: zod.number(),
+      purpose: zod.string(),
+      reviewedByUserId: zod.number().nullable(),
+    }),
+  );
+
+/**
+ * @summary Reveal a loan application ID number
+ */
+
+export const GetAdminLoanIdNumberParams = zod.object({
+  id: zod.coerce.number().min(1),
+});
+
+export const GetAdminLoanIdNumberResponse = zod.object({
+  idNumber: zod.string(),
 });
 
 /**
@@ -318,6 +600,7 @@ export const GetAdminUsersResponseItem = zod.object({
   role: zod.enum(["user", "admin"]),
   status: zod.enum(["active", "suspended"]),
   createdAt: zod.string(),
+  referralCode: zod.string(),
 });
 export const GetAdminUsersResponse = zod.array(GetAdminUsersResponseItem);
 
@@ -389,6 +672,7 @@ export const UpdateAdminUserResponse = zod.object({
   role: zod.enum(["user", "admin"]),
   status: zod.enum(["active", "suspended"]),
   createdAt: zod.string(),
+  referralCode: zod.string(),
 });
 
 /**
@@ -536,6 +820,7 @@ export const GetAdminKycQueueResponseItem = zod
     role: zod.enum(["user", "admin"]),
     status: zod.enum(["active", "suspended"]),
     createdAt: zod.string(),
+    referralCode: zod.string(),
   })
   .and(
     zod.object({
@@ -577,6 +862,7 @@ export const ApproveAdminKycResponse = zod.object({
   role: zod.enum(["user", "admin"]),
   status: zod.enum(["active", "suspended"]),
   createdAt: zod.string(),
+  referralCode: zod.string(),
 });
 
 /**
@@ -596,6 +882,7 @@ export const RejectAdminKycResponse = zod.object({
   role: zod.enum(["user", "admin"]),
   status: zod.enum(["active", "suspended"]),
   createdAt: zod.string(),
+  referralCode: zod.string(),
 });
 
 /**

@@ -22,6 +22,8 @@ import type {
   AdminCustomEmailResult,
   AdminKycIdNumber,
   AdminKycSubmission,
+  AdminLoan,
+  AdminLoanIdNumber,
   AdminStats,
   AdminTransaction,
   AdminUserPreview,
@@ -39,9 +41,13 @@ import type {
   HealthStatus,
   Investment,
   KycSubmitRequest,
+  Loan,
+  LoanApplicationInput,
+  LoanRejectionInput,
   LoginRequest,
   MessageResponse,
   Portfolio,
+  ReferralSummary,
   RegisterRequest,
   TradeRequest,
   Transaction,
@@ -689,6 +695,650 @@ export function useGetPortfolio<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetPortfolioQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get the current user's referral summary
+ */
+export const getGetReferralSummaryUrl = () => {
+  return `/api/referrals/summary`;
+};
+
+export const getReferralSummary = async (
+  options?: RequestInit,
+): Promise<ReferralSummary> => {
+  return customFetch<ReferralSummary>(getGetReferralSummaryUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetReferralSummaryQueryKey = () => {
+  return [`/api/referrals/summary`] as const;
+};
+
+export const getGetReferralSummaryQueryOptions = <
+  TData = Awaited<ReturnType<typeof getReferralSummary>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getReferralSummary>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetReferralSummaryQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getReferralSummary>>
+  > = ({ signal }) => getReferralSummary({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getReferralSummary>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetReferralSummaryQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getReferralSummary>>
+>;
+export type GetReferralSummaryQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get the current user's referral summary
+ */
+
+export function useGetReferralSummary<
+  TData = Awaited<ReturnType<typeof getReferralSummary>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getReferralSummary>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetReferralSummaryQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List the current user's loans
+ */
+export const getGetLoansUrl = () => {
+  return `/api/loans`;
+};
+
+export const getLoans = async (options?: RequestInit): Promise<Loan[]> => {
+  return customFetch<Loan[]>(getGetLoansUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetLoansQueryKey = () => {
+  return [`/api/loans`] as const;
+};
+
+export const getGetLoansQueryOptions = <
+  TData = Awaited<ReturnType<typeof getLoans>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof getLoans>>, TError, TData>;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetLoansQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getLoans>>> = ({
+    signal,
+  }) => getLoans({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getLoans>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetLoansQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getLoans>>
+>;
+export type GetLoansQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List the current user's loans
+ */
+
+export function useGetLoans<
+  TData = Awaited<ReturnType<typeof getLoans>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof getLoans>>, TError, TData>;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetLoansQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Submit a loan application
+ */
+export const getCreateLoanUrl = () => {
+  return `/api/loans`;
+};
+
+export const createLoan = async (
+  loanApplicationInput: LoanApplicationInput,
+  options?: RequestInit,
+): Promise<Loan> => {
+  return customFetch<Loan>(getCreateLoanUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(loanApplicationInput),
+  });
+};
+
+export const getCreateLoanMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createLoan>>,
+    TError,
+    { data: BodyType<LoanApplicationInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createLoan>>,
+  TError,
+  { data: BodyType<LoanApplicationInput> },
+  TContext
+> => {
+  const mutationKey = ["createLoan"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createLoan>>,
+    { data: BodyType<LoanApplicationInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createLoan(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateLoanMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createLoan>>
+>;
+export type CreateLoanMutationBody = BodyType<LoanApplicationInput>;
+export type CreateLoanMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Submit a loan application
+ */
+export const useCreateLoan = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createLoan>>,
+    TError,
+    { data: BodyType<LoanApplicationInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createLoan>>,
+  TError,
+  { data: BodyType<LoanApplicationInput> },
+  TContext
+> => {
+  return useMutation(getCreateLoanMutationOptions(options));
+};
+
+/**
+ * @summary Repay an approved loan
+ */
+export const getRepayLoanUrl = (id: number) => {
+  return `/api/loans/${id}/repay`;
+};
+
+export const repayLoan = async (
+  id: number,
+  options?: RequestInit,
+): Promise<Loan> => {
+  return customFetch<Loan>(getRepayLoanUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getRepayLoanMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof repayLoan>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof repayLoan>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["repayLoan"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof repayLoan>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return repayLoan(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RepayLoanMutationResult = NonNullable<
+  Awaited<ReturnType<typeof repayLoan>>
+>;
+
+export type RepayLoanMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Repay an approved loan
+ */
+export const useRepayLoan = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof repayLoan>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof repayLoan>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getRepayLoanMutationOptions(options));
+};
+
+/**
+ * @summary List loan applications
+ */
+export const getGetAdminLoansUrl = () => {
+  return `/api/admin/loans`;
+};
+
+export const getAdminLoans = async (
+  options?: RequestInit,
+): Promise<AdminLoan[]> => {
+  return customFetch<AdminLoan[]>(getGetAdminLoansUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetAdminLoansQueryKey = () => {
+  return [`/api/admin/loans`] as const;
+};
+
+export const getGetAdminLoansQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAdminLoans>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getAdminLoans>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetAdminLoansQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminLoans>>> = ({
+    signal,
+  }) => getAdminLoans({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAdminLoans>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetAdminLoansQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAdminLoans>>
+>;
+export type GetAdminLoansQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List loan applications
+ */
+
+export function useGetAdminLoans<
+  TData = Awaited<ReturnType<typeof getAdminLoans>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getAdminLoans>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetAdminLoansQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Approve a pending loan
+ */
+export const getApproveAdminLoanUrl = (id: number) => {
+  return `/api/admin/loans/${id}/approve`;
+};
+
+export const approveAdminLoan = async (
+  id: number,
+  options?: RequestInit,
+): Promise<AdminLoan> => {
+  return customFetch<AdminLoan>(getApproveAdminLoanUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getApproveAdminLoanMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof approveAdminLoan>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof approveAdminLoan>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["approveAdminLoan"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof approveAdminLoan>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return approveAdminLoan(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ApproveAdminLoanMutationResult = NonNullable<
+  Awaited<ReturnType<typeof approveAdminLoan>>
+>;
+
+export type ApproveAdminLoanMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Approve a pending loan
+ */
+export const useApproveAdminLoan = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof approveAdminLoan>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof approveAdminLoan>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getApproveAdminLoanMutationOptions(options));
+};
+
+/**
+ * @summary Reject a pending loan
+ */
+export const getRejectAdminLoanUrl = (id: number) => {
+  return `/api/admin/loans/${id}/reject`;
+};
+
+export const rejectAdminLoan = async (
+  id: number,
+  loanRejectionInput: LoanRejectionInput,
+  options?: RequestInit,
+): Promise<AdminLoan> => {
+  return customFetch<AdminLoan>(getRejectAdminLoanUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(loanRejectionInput),
+  });
+};
+
+export const getRejectAdminLoanMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof rejectAdminLoan>>,
+    TError,
+    { id: number; data: BodyType<LoanRejectionInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof rejectAdminLoan>>,
+  TError,
+  { id: number; data: BodyType<LoanRejectionInput> },
+  TContext
+> => {
+  const mutationKey = ["rejectAdminLoan"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof rejectAdminLoan>>,
+    { id: number; data: BodyType<LoanRejectionInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return rejectAdminLoan(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RejectAdminLoanMutationResult = NonNullable<
+  Awaited<ReturnType<typeof rejectAdminLoan>>
+>;
+export type RejectAdminLoanMutationBody = BodyType<LoanRejectionInput>;
+export type RejectAdminLoanMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Reject a pending loan
+ */
+export const useRejectAdminLoan = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof rejectAdminLoan>>,
+    TError,
+    { id: number; data: BodyType<LoanRejectionInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof rejectAdminLoan>>,
+  TError,
+  { id: number; data: BodyType<LoanRejectionInput> },
+  TContext
+> => {
+  return useMutation(getRejectAdminLoanMutationOptions(options));
+};
+
+/**
+ * @summary Reveal a loan application ID number
+ */
+export const getGetAdminLoanIdNumberUrl = (id: number) => {
+  return `/api/admin/loans/${id}/id-number`;
+};
+
+export const getAdminLoanIdNumber = async (
+  id: number,
+  options?: RequestInit,
+): Promise<AdminLoanIdNumber> => {
+  return customFetch<AdminLoanIdNumber>(getGetAdminLoanIdNumberUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetAdminLoanIdNumberQueryKey = (id: number) => {
+  return [`/api/admin/loans/${id}/id-number`] as const;
+};
+
+export const getGetAdminLoanIdNumberQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAdminLoanIdNumber>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAdminLoanIdNumber>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetAdminLoanIdNumberQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getAdminLoanIdNumber>>
+  > = ({ signal }) => getAdminLoanIdNumber(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAdminLoanIdNumber>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetAdminLoanIdNumberQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAdminLoanIdNumber>>
+>;
+export type GetAdminLoanIdNumberQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Reveal a loan application ID number
+ */
+
+export function useGetAdminLoanIdNumber<
+  TData = Awaited<ReturnType<typeof getAdminLoanIdNumber>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAdminLoanIdNumber>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetAdminLoanIdNumberQueryOptions(id, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

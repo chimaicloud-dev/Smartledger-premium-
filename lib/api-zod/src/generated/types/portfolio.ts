@@ -10,5 +10,6 @@ import type { Holding } from "./holding";
 export interface Portfolio {
   usdBalance: number;
   totalValue: number;
+  pendingDeposits: number;
   holdings: Holding[];
 }

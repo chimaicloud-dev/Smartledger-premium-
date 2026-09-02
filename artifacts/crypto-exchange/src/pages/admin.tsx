@@ -32,6 +32,7 @@ import {
   CalendarDays,
   Mail,
   Send,
+  Landmark,
 } from "lucide-react";
 import {
   useGetAdminStats,
@@ -49,11 +50,17 @@ import {
   useAdminCreateAdmin,
   useSendAdminCustomEmail,
   useGetAdminCustomEmailJob,
+  useGetAdminLoans,
+  useApproveAdminLoan,
+  useRejectAdminLoan,
+  useGetAdminLoanIdNumber,
+  getGetAdminLoansQueryKey,
+  getGetAdminLoanIdNumberQueryKey,
 } from "@workspace/api-client-react";
-import type { User, AdminTransaction, AdminUserPreview, AdminCustomEmailInputAudience, AdminCustomEmailResult } from "@workspace/api-client-react";
+import type { User, AdminTransaction, AdminUserPreview, AdminCustomEmailInputAudience, AdminCustomEmailResult, AdminLoan } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 
-type Tab = "overview" | "approvals" | "kyc" | "users" | "transactions" | "email" | "settings";
+type Tab = "overview" | "approvals" | "kyc" | "loans" | "users" | "transactions" | "email" | "settings";
 
 export default function AdminPage() {
   const { user, isLoading } = useAuth();
@@ -101,6 +108,7 @@ export default function AdminPage() {
             { id: "overview", label: "Overview", icon: Activity },
             { id: "approvals", label: "Pending", icon: Clock },
             { id: "kyc", label: "KYC Queue", icon: FileCheck },
+            { id: "loans", label: "Loans", icon: Landmark },
             { id: "users", label: "Users", icon: Users },
             { id: "transactions", label: "Transactions", icon: TrendingUp },
             { id: "email", label: "Emails", icon: Mail },
@@ -125,6 +133,7 @@ export default function AdminPage() {
         {tab === "overview" && <OverviewTab onChangeTab={setTab} />}
         {tab === "approvals" && <ApprovalsTab />}
         {tab === "kyc" && <KycTab />}
+        {tab === "loans" && <LoansTab />}
         {tab === "users" && <UsersTab />}
         {tab === "transactions" && <TransactionsTab />}
         {tab === "email" && <EmailTab />}
@@ -462,6 +471,170 @@ function KycTab() {
                 <XCircle className="w-4 h-4 mr-1" /> Reject KYC
               </Button>
             </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AdminLoanIdField({ loanId, masked }: { loanId: number; masked: string }) {
+  const { data, refetch, isFetching, error } = useGetAdminLoanIdNumber(loanId, {
+    query: { enabled: false, queryKey: getGetAdminLoanIdNumberQueryKey(loanId) }
+  });
+
+  const revealed = data?.idNumber;
+  const revealError = error ? apiErrorMessage(error, "Unable to reveal ID") : "";
+
+  return (
+    <div className="flex items-center justify-between gap-2 mt-1">
+      <div className={cn("text-sm font-medium break-all", !masked && "text-muted-foreground italic")}>
+        {revealed || masked || "Not available"}
+      </div>
+      {masked && !revealed && (
+        <button
+          type="button"
+          onClick={() => refetch()}
+          disabled={isFetching}
+          className="text-xs text-amber-300 hover:text-amber-200 disabled:opacity-50 shrink-0"
+        >
+          {isFetching ? "Revealing..." : "Reveal ID"}
+        </button>
+      )}
+      {revealError && <div className="text-xs text-red-400 w-full mt-1">{revealError}</div>}
+    </div>
+  );
+}
+
+function LoansTab() {
+  const queryClient = useQueryClient();
+  const { data: loans, isLoading, refetch } = useGetAdminLoans();
+  const approve = useApproveAdminLoan({
+    mutation: { onSuccess: () => { queryClient.invalidateQueries({ queryKey: getGetAdminLoansQueryKey() }); } },
+  });
+  const reject = useRejectAdminLoan({
+    mutation: { onSuccess: () => { queryClient.invalidateQueries({ queryKey: getGetAdminLoansQueryKey() }); } },
+  });
+
+  const [rejectionReason, setRejectionReason] = useState<Record<number, string>>({});
+
+  if (isLoading) return <div className="text-muted-foreground text-sm">Loading loans...</div>;
+
+  if (!loans || loans.length === 0) {
+    return (
+      <div className="p-12 rounded-xl bg-card border border-border text-center">
+        <Landmark className="w-12 h-12 text-muted-foreground mx-auto mb-3 opacity-50" />
+        <h3 className="font-semibold mb-1">No loans found</h3>
+        <p className="text-sm text-muted-foreground">There are no loan applications in the system.</p>
+      </div>
+    );
+  }
+
+  // Sort pending first, then by date descending
+  const sortedLoans = [...loans].sort((a, b) => {
+    if (a.status === "pending" && b.status !== "pending") return -1;
+    if (b.status === "pending" && a.status !== "pending") return 1;
+    return new Date(b.requestedAt).getTime() - new Date(a.requestedAt).getTime();
+  });
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+          Loan Applications ({loans.length})
+        </h2>
+        <button onClick={() => refetch()} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
+          <RefreshCw className="w-3 h-3" /> Refresh
+        </button>
+      </div>
+      <div className="space-y-3">
+        {sortedLoans.map((loan) => (
+          <div key={loan.id} className="p-4 rounded-xl bg-card border border-border">
+            <div className="flex items-start justify-between gap-3 flex-wrap mb-3">
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-semibold">Loan #{loan.id}</span>
+                  <StatusBadge status={loan.status} />
+                  <span className="text-xs px-2 py-0.5 rounded bg-secondary text-foreground">{loan.planName}</span>
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  User #{loan.userId} · {loan.fullName} · {loan.phone}
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="font-display font-bold text-base">${loan.amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+                <div className="text-xs text-muted-foreground">Collateral: {loan.collateralSymbol.toUpperCase()}</div>
+              </div>
+            </div>
+
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 mb-3">
+              {[
+                ["APR", `${loan.apr}%`],
+                ["Term", `${loan.termDays} days`],
+                ["Repayment", `$${loan.repaymentAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}`],
+                ["Purpose", loan.purpose],
+                ["Monthly Income", `$${loan.monthlyIncome.toLocaleString()}`],
+                ["Employment", loan.employmentStatus],
+                ["Date of Birth", formatDateOnly(loan.dateOfBirth)],
+                ["Address", `${loan.residentialAddress}, ${loan.country}`],
+                ["Requested", new Date(loan.requestedAt).toLocaleString()],
+              ].map(([label, value]) => (
+                <div key={label} className="p-3 rounded-lg bg-secondary/50 border border-border min-w-0">
+                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
+                  <div className="text-sm font-medium mt-1 break-words">{value}</div>
+                </div>
+              ))}
+
+              <div className="p-3 rounded-lg bg-secondary/50 border border-border min-w-0">
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">ID Number ({loan.idType})</div>
+                <AdminLoanIdField loanId={loan.id} masked={"***********"} />
+              </div>
+            </div>
+
+            {loan.status === "pending" && (
+              <div className="pt-3 mt-3 border-t border-border">
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <Button
+                    size="sm"
+                    variant="success"
+                    className="flex-1"
+                    disabled={approve.isPending || reject.isPending}
+                    onClick={() => {
+                      if (window.confirm(`Are you sure you want to approve this loan for $${loan.amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}? Approval credits USDT immediately.`)) {
+                        approve.mutate({ id: loan.id });
+                      }
+                    }}
+                  >
+                    <CheckCircle2 className="w-4 h-4 mr-1" /> Approve Loan
+                  </Button>
+                  <div className="flex-1 flex gap-2">
+                    <Input
+                      placeholder="Reason for rejection..."
+                      value={rejectionReason[loan.id] || ""}
+                      onChange={(e) => setRejectionReason(prev => ({ ...prev, [loan.id]: e.target.value }))}
+                      className="flex-1 h-9"
+                    />
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      disabled={approve.isPending || reject.isPending || !rejectionReason[loan.id]?.trim()}
+                      onClick={() => {
+                        const reason = rejectionReason[loan.id]?.trim();
+                        if (reason) reject.mutate({ id: loan.id, data: { reason } });
+                      }}
+                    >
+                      <XCircle className="w-4 h-4 mr-1" /> Reject
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {loan.status === "rejected" && loan.rejectionReason && (
+              <div className="mt-2 text-xs text-red-400 bg-red-500/10 p-2 rounded border border-red-500/20">
+                <span className="font-semibold">Rejection Reason:</span> {loan.rejectionReason}
+              </div>
+            )}
           </div>
         ))}
       </div>

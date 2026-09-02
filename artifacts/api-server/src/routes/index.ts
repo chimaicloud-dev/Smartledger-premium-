@@ -8,6 +8,8 @@ import adminRouter from "./admin";
 import settingsRouter from "./settings";
 import investmentsRouter from "./investments";
 import cronRouter from "./cron";
+import loansRouter from "./loans";
+import referralsRouter from "./referrals";
 
 const router: IRouter = Router();
 
@@ -20,5 +22,7 @@ router.use("/admin", adminRouter);
 router.use("/settings", settingsRouter);
 router.use(investmentsRouter);
 router.use(cronRouter);
+router.use(loansRouter);
+router.use(referralsRouter);
 
 export default router;

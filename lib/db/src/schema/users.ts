@@ -1,4 +1,4 @@
-import { pgTable, text, serial, real, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, real, timestamp, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -21,6 +21,8 @@ export const usersTable = pgTable("users", {
   role: text("role").notNull().default("user"),
   status: text("status").notNull().default("active"),
   timezone: text("timezone"),
+  referralCode: text("referral_code").notNull().unique(),
+  referredByUserId: integer("referred_by_user_id"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

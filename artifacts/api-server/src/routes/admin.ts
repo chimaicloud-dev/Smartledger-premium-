@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import bcrypt from "bcryptjs";
-import { db, usersTable, holdingsTable, transactionsTable, siteSettingsTable } from "@workspace/db";
+import crypto from "node:crypto";
+import { db, usersTable, holdingsTable, transactionsTable, siteSettingsTable, referralRewardsTable, loansTable } from "@workspace/db";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { requireAdmin } from "../lib/admin";
 import { methodToSymbol } from "../lib/withdraw-methods";
@@ -73,6 +74,7 @@ function userToResponse(u: typeof usersTable.$inferSelect) {
     kycStatus: u.kycStatus,
     role: u.role,
     status: u.status,
+    referralCode: u.referralCode,
     createdAt: u.createdAt.toISOString(),
   };
 }
@@ -334,6 +336,9 @@ router.delete("/users/:id", async (req, res) => {
   }
   await db.delete(holdingsTable).where(eq(holdingsTable.userId, id));
   await db.delete(transactionsTable).where(eq(transactionsTable.userId, id));
+  await db.delete(referralRewardsTable).where(sql`${referralRewardsTable.referrerUserId} = ${id} OR ${referralRewardsTable.referredUserId} = ${id}`);
+  await db.delete(loansTable).where(eq(loansTable.userId, id));
+  await db.update(usersTable).set({ referredByUserId: null }).where(eq(usersTable.referredByUserId, id));
   await db.delete(usersTable).where(eq(usersTable.id, id));
   req.log.info({ id }, "admin.user.deleted");
   res.json({ message: "User deleted" });
@@ -411,46 +416,58 @@ router.post("/transactions/:id/approve", async (req, res) => {
     res.status(404).json({ error: "Transaction not found" });
     return;
   }
-  // Atomically claim the pending transaction — prevents concurrent approvals
-  // (or an approve racing a reject) from applying balance effects twice.
-  const [claimed] = await db
-    .update(transactionsTable)
-    .set({ status: "completed" })
-    .where(and(eq(transactionsTable.id, id), eq(transactionsTable.status, "pending")))
-    .returning();
+  let claimed: typeof transactionsTable.$inferSelect | undefined;
+  if (tx.type === "deposit") {
+    const price = tx.symbol ? tx.price ?? (await livePrice(req, tx.symbol)) : null;
+    claimed = await db.transaction(async (dbTx) => {
+      // Claim, credit the depositor, and (where applicable) issue the referral
+      // reward in one atomic unit. A rollback leaves the deposit pending.
+      const [claimedDeposit] = await dbTx.update(transactionsTable).set({ status: "completed" })
+        .where(and(eq(transactionsTable.id, id), eq(transactionsTable.status, "pending"))).returning();
+      if (!claimedDeposit) return undefined;
+      if (claimedDeposit.symbol && claimedDeposit.amount && claimedDeposit.amount > 0 && price !== null) {
+        await dbTx.insert(holdingsTable).values({ userId: claimedDeposit.userId, coin: claimedDeposit.coin ?? COIN_INFO[claimedDeposit.symbol]?.name ?? claimedDeposit.symbol, symbol: claimedDeposit.symbol, amount: claimedDeposit.amount, avgBuyPrice: price })
+          .onConflictDoUpdate({
+            target: [holdingsTable.userId, holdingsTable.symbol],
+            set: {
+              amount: sql`${holdingsTable.amount} + EXCLUDED.amount`,
+              avgBuyPrice: sql`CASE WHEN ${holdingsTable.amount} + EXCLUDED.amount = 0 THEN 0 ELSE (${holdingsTable.avgBuyPrice} * ${holdingsTable.amount} + EXCLUDED.avg_buy_price * EXCLUDED.amount) / (${holdingsTable.amount} + EXCLUDED.amount) END`,
+              updatedAt: new Date(),
+            },
+          });
+      }
+      const [depositor] = await dbTx.select({ referredByUserId: usersTable.referredByUserId })
+        .from(usersTable).where(eq(usersTable.id, claimedDeposit.userId)).limit(1);
+      if (depositor?.referredByUserId) {
+        const [rewardValue] = await dbTx.select({
+          rewardCents: sql<number>`round(${transactionsTable.usdAmount} * 3)::integer`,
+        }).from(transactionsTable).where(eq(transactionsTable.id, claimedDeposit.id)).limit(1);
+        const rewardCents = rewardValue?.rewardCents ?? 0;
+        if (rewardCents > 0) {
+          const reward = rewardCents / 100;
+          const inserted = await dbTx.insert(referralRewardsTable).values({
+            referrerUserId: depositor.referredByUserId, referredUserId: claimedDeposit.userId,
+            qualifyingTransactionId: claimedDeposit.id, amountCents: rewardCents, status: "completed",
+          }).onConflictDoNothing().returning({ id: referralRewardsTable.id });
+          if (inserted.length) {
+            await dbTx.insert(holdingsTable).values({ userId: depositor.referredByUserId, coin: "Tether", symbol: "USDT", amount: reward, avgBuyPrice: 1 })
+              .onConflictDoUpdate({ target: [holdingsTable.userId, holdingsTable.symbol], set: { amount: sql`${holdingsTable.amount} + EXCLUDED.amount`, updatedAt: new Date() } });
+            await dbTx.insert(transactionsTable).values({ userId: depositor.referredByUserId, type: "referral_bonus", coin: "Tether", symbol: "USDT", amount: reward, usdAmount: reward, price: 1, status: "completed" });
+          }
+        }
+      }
+      return claimedDeposit;
+    });
+  } else {
+    [claimed] = await db.update(transactionsTable).set({ status: "completed" })
+      .where(and(eq(transactionsTable.id, id), eq(transactionsTable.status, "pending"))).returning();
+  }
   if (!claimed) {
     res.status(400).json({ error: `Transaction is ${tx.status === "pending" ? "already being processed" : tx.status}, not pending` });
     return;
   }
 
-  if (tx.type === "deposit") {
-    // Deposits are now auto-credited on submission, so approval is a no-op for balance.
-    // Kept for admin visibility / manual override of old pending deposits.
-    if (tx.symbol && tx.amount && tx.amount > 0) {
-      const sym = tx.symbol;
-      const price = tx.price ?? (await livePrice(req, sym));
-      const coinName = tx.coin ?? COIN_INFO[sym]?.name ?? sym;
-      const [existing] = await db
-        .select()
-        .from(holdingsTable)
-        .where(and(eq(holdingsTable.userId, tx.userId), eq(holdingsTable.symbol, sym)))
-        .limit(1);
-      if (existing) {
-        const newAmount = existing.amount + tx.amount;
-        const newAvg = newAmount > 0 ? (existing.avgBuyPrice * existing.amount + price * tx.amount) / newAmount : price;
-        await db.update(holdingsTable).set({ amount: newAmount, avgBuyPrice: newAvg, updatedAt: new Date() }).where(eq(holdingsTable.id, existing.id));
-      } else {
-        await db.insert(holdingsTable).values({
-          userId: tx.userId,
-          coin: coinName,
-          symbol: sym,
-          amount: tx.amount,
-          avgBuyPrice: price,
-        });
-      }
-    }
-    // Fiat deposits are no longer supported — legacy fiat pendings complete without crediting.
-  } else if (tx.type === "withdraw") {
+  if (tx.type === "withdraw") {
     // Balance was already deducted at request time. Approval just finalizes.
   }
 
@@ -654,6 +671,7 @@ router.post("/create-admin", async (req, res) => {
       role: "admin",
       status: "active",
       kycStatus: "verified",
+      referralCode: `SL${crypto.randomBytes(8).toString("hex").toUpperCase()}`,
     })
     .returning();
   req.log.info({ id: created.id, email: normalised }, "admin.create-admin.created");

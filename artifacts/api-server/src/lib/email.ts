@@ -1,6 +1,5 @@
 import nodemailer from "nodemailer";
 import type { Transporter } from "nodemailer";
-import brandLogoDataUrl from "../assets/email-logo.png";
 
 // SMTP account for the support mailbox (no Gmail involved)
 const SMTP_USER = process.env.SMTP_USER || "support@smartledger-premium.com";
@@ -9,8 +8,6 @@ const FROM_NAME = "SmartLedger Premium";
 const BRAND_NAME = "SmartLedger Premium";
 const BRAND_GOLD = "#D8A83E";
 const BRAND_TEAL = "#16A6B6";
-const BRAND_LOGO_CID = "smartledger-premium-logo";
-const BRAND_LOGO_CONTENT = Buffer.from(brandLogoDataUrl.split(",", 2)[1] ?? "", "base64");
 
 let transporter: Transporter | null = null;
 
@@ -56,7 +53,6 @@ export type EmailRow = { label: string; value: string };
 /**
  * Compact, email-client-safe SmartLedger Premium shell inspired by the
  * proportions and hierarchy of leading exchange transaction emails.
- * The brand mark is an image, so translation tools cannot alter it.
  */
 export function renderEmail(opts: {
   title: string;
@@ -115,9 +111,6 @@ export function renderEmail(opts: {
               <div style="height:6px;background-color:${BRAND_TEAL};font-size:0;line-height:0;">&nbsp;</div>
               <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:34px 0 44px 0;">
                 <tr>
-                  <td style="vertical-align:middle;padding-right:12px;">
-                    <img src="cid:${BRAND_LOGO_CID}" width="62" height="62" alt="SmartLedger Premium" class="notranslate" translate="no" style="display:block;width:62px;height:62px;border:0;border-radius:10px;object-fit:cover;">
-                  </td>
                   <td class="notranslate" translate="no" style="vertical-align:middle;color:#0b0e11;font-size:22px;line-height:1.05;font-weight:800;letter-spacing:-0.4px;">
                     SmartLedger<br><span style="color:${BRAND_GOLD};font-size:11px;letter-spacing:3.4px;">PREMIUM</span>
                   </td>
@@ -192,14 +185,6 @@ export async function sendEmail(to: string, subject: string, html: string): Prom
         to: recipient,
         subject,
         html,
-        attachments: [
-          {
-            filename: "smartledger-premium-logo.png",
-            content: BRAND_LOGO_CONTENT,
-            cid: BRAND_LOGO_CID,
-            contentType: "image/png",
-          },
-        ],
       });
       return; // success
     } catch (err) {

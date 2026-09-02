@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { DashboardLayout } from "@/components/layout";
 import { Card, Button } from "@/components/ui/shared";
 import { useAuth } from "@/hooks/use-auth";
-import { useGetPortfolio, useGetMarketPrices } from "@workspace/api-client-react";
+import { useGetPortfolio, useGetMarketPrices, useGetReferralSummary } from "@workspace/api-client-react";
 import { formatCurrency, formatPercent, cn } from "@/lib/utils";
-import { TrendingUp, TrendingDown, ArrowRightLeft, Wallet, ExternalLink, Radio, ArrowUpFromLine, Repeat } from "lucide-react";
+import { TrendingUp, TrendingDown, ArrowRightLeft, Wallet, ExternalLink, Radio, ArrowUpFromLine, Repeat, Users, Copy, Check } from "lucide-react";
 import { Link } from "wouter";
 
 function LivePrice({ value }: { value: number }) {
@@ -35,9 +35,20 @@ function LivePrice({ value }: { value: number }) {
 export default function DashboardOverview() {
   const { user } = useAuth();
   const { data: portfolio, isLoading: portfolioLoading } = useGetPortfolio();
+  const { data: referralSummary } = useGetReferralSummary();
   const { data: marketData, isLoading: marketLoading } = useGetMarketPrices({
     query: { queryKey: ["/api/market/prices"], refetchInterval: 5000, refetchOnWindowFocus: true },
   });
+  const [copied, setCopied] = useState(false);
+
+  const referralLink = referralSummary ? `${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, "")}/register?ref=${referralSummary.referralCode}` : "";
+
+  const handleCopyLink = () => {
+    if (!referralLink) return;
+    navigator.clipboard.writeText(referralLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   if (!user) return null;
 
@@ -91,7 +102,7 @@ export default function DashboardOverview() {
               {(portfolio?.pendingDeposits ?? 0) > 0 && (
                 <span className="flex items-center gap-1.5 text-muted-foreground">
                   Pending Deposit:&nbsp;
-                  <span className="mono-nums font-medium text-yellow-400">{formatCurrency(portfolio!.pendingDeposits)}</span>
+                  <span className="mono-nums font-medium text-yellow-400">{formatCurrency(portfolio!.pendingDeposits ?? 0)}</span>
                   <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-yellow-500/10 border border-yellow-500/25 text-yellow-400 font-semibold uppercase tracking-wide">Awaiting Approval</span>
                 </span>
               )}
@@ -120,6 +131,35 @@ export default function DashboardOverview() {
           </Card>
         </div>
 
+        {/* Referral Card */}
+        {referralSummary && (
+          <Card className="p-5 border-primary/20 bg-primary/5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div>
+              <h3 className="font-bold text-foreground flex items-center gap-2">
+                <Users className="w-4 h-4 text-primary" /> Invite & Earn
+              </h3>
+              <p className="text-sm text-muted-foreground mt-1">Earn a 3% bonus when a deposit made by someone you refer is approved.</p>
+              <div className="flex items-center gap-4 mt-3 text-sm">
+                <div>
+                  <span className="text-muted-foreground">Referred:</span> <span className="font-bold">{referralSummary.referralCount}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Earnings:</span> <span className="font-bold text-success">{formatCurrency(referralSummary.referralEarnings)}</span>
+                </div>
+              </div>
+            </div>
+            <div className="w-full md:w-auto flex flex-col sm:flex-row items-center gap-2">
+              <div className="w-full sm:w-64 px-3 py-2 bg-background border border-border rounded-lg text-xs font-mono text-muted-foreground truncate">
+                {referralLink}
+              </div>
+              <Button onClick={handleCopyLink} variant="secondary" className="w-full sm:w-auto shrink-0 font-medium">
+                {copied ? <Check className="w-4 h-4 mr-2 text-success" /> : <Copy className="w-4 h-4 mr-2" />}
+                {copied ? "Copied" : "Copy Link"}
+              </Button>
+            </div>
+          </Card>
+        )}
+
         {/* Market Highlights */}
         <div>
           <div className="flex items-center justify-between mb-4">
@@ -131,7 +171,7 @@ export default function DashboardOverview() {
             </div>
             <Link href="/dashboard/invest" className="text-sm font-medium text-primary hover:underline">View All</Link>
           </div>
-          
+
           <Card className="overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">

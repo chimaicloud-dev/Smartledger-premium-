@@ -5,3 +5,5 @@ export * from "./investments";
 export * from "./site-settings";
 export * from "./password-reset-tokens";
 export * from "./withdrawal-addresses";
+export * from "./referral-rewards";
+export * from "./loans";
