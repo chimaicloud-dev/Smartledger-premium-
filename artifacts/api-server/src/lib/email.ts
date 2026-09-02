@@ -8,6 +8,7 @@ const FROM_NAME = "SmartLedger Premium";
 const BRAND_NAME = "SmartLedger Premium";
 const BRAND_GOLD = "#D8A83E";
 const BRAND_TEAL = "#16A6B6";
+const BRAND_LOGO_URL = "https://www.smartledger-premium.com/images/logo.png";
 
 let transporter: Transporter | null = null;
 
@@ -111,6 +112,9 @@ export function renderEmail(opts: {
               <div style="height:6px;background-color:${BRAND_TEAL};font-size:0;line-height:0;">&nbsp;</div>
               <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:34px 0 44px 0;">
                 <tr>
+                  <td style="padding-right:12px;vertical-align:middle;">
+                    <img src="${BRAND_LOGO_URL}" width="58" height="58" alt="SmartLedger Premium" style="display:block;width:58px;height:58px;border:0;outline:none;text-decoration:none;border-radius:12px;">
+                  </td>
                   <td class="notranslate" translate="no" style="vertical-align:middle;color:#0b0e11;font-size:22px;line-height:1.05;font-weight:800;letter-spacing:-0.4px;">
                     SmartLedger<br><span style="color:${BRAND_GOLD};font-size:11px;letter-spacing:3.4px;">PREMIUM</span>
                   </td>
