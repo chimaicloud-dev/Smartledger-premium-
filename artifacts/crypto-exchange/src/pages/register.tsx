@@ -81,7 +81,10 @@ export default function RegisterPage() {
     try {
       setError(null);
       const { confirmPassword, ...payload } = data;
-      await registerUser(payload);
+      await registerUser({
+        ...payload,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      });
     } catch (err: any) {
       setError(apiErrorMessage(err, "Failed to register. Please try again."));
     }

@@ -28,7 +28,10 @@ export default function LoginPage() {
   const onSubmit = async (data: LoginForm) => {
     try {
       setError(null);
-      await login(data);
+      await login({
+        ...data,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      });
     } catch (err: any) {
       setError(apiErrorMessage(err, "Failed to login. Please check your credentials."));
     }

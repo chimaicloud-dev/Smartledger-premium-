@@ -16,6 +16,12 @@ declare module "express-session" {
 
 const router: IRouter = Router();
 
+function validateDeviceTimezone(timezone?: string): string | undefined {
+  if (!timezone) return undefined;
+  new Intl.DateTimeFormat("en-US", { timeZone: timezone }).format();
+  return timezone;
+}
+
 router.post("/register", async (req, res) => {
   const parsed = RegisterBody.safeParse(req.body);
   if (!parsed.success) {
@@ -23,7 +29,14 @@ router.post("/register", async (req, res) => {
     return;
   }
 
-  const { email, password, name, phone, country, dateOfBirth } = parsed.data;
+  const { email, password, name, phone, country, dateOfBirth, timezone } = parsed.data;
+  let deviceTimezone: string | undefined;
+  try {
+    deviceTimezone = validateDeviceTimezone(timezone);
+  } catch {
+    res.status(400).json({ error: "Invalid device timezone" });
+    return;
+  }
 
   // Must be exactly one valid email address (no lists, spaces, or brackets)
   if (!/^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/.test(email.trim())) {
@@ -45,13 +58,14 @@ router.post("/register", async (req, res) => {
     phone,
     country,
     dateOfBirth,
+    timezone: deviceTimezone,
     experience: "beginner",
     usdBalance: 0,
   }).returning();
 
   req.session.userId = user.id;
 
-  sendWelcomeEmail(user.email, user.name);
+  sendWelcomeEmail(user.email, user.name, user.timezone);
   notifyAdminNewUser(user.name);
 
   res.status(201).json({
@@ -77,7 +91,14 @@ router.post("/login", async (req, res) => {
     return;
   }
 
-  const { email, password } = parsed.data;
+  const { email, password, timezone } = parsed.data;
+  let deviceTimezone: string | undefined;
+  try {
+    deviceTimezone = validateDeviceTimezone(timezone);
+  } catch {
+    res.status(400).json({ error: "Invalid device timezone" });
+    return;
+  }
 
   const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
   if (!user) {
@@ -96,19 +117,29 @@ router.post("/login", async (req, res) => {
     return;
   }
 
-  req.session.userId = user.id;
+  let authenticatedUser = user;
+  if (deviceTimezone && deviceTimezone !== user.timezone) {
+    const [updatedUser] = await db
+      .update(usersTable)
+      .set({ timezone: deviceTimezone })
+      .where(eq(usersTable.id, user.id))
+      .returning();
+    if (updatedUser) authenticatedUser = updatedUser;
+  }
+
+  req.session.userId = authenticatedUser.id;
 
   res.json({
     user: {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      experience: user.experience,
-      usdBalance: user.usdBalance,
-      kycStatus: user.kycStatus,
-      role: user.role,
-      status: user.status,
-      createdAt: user.createdAt.toISOString(),
+      id: authenticatedUser.id,
+      email: authenticatedUser.email,
+      name: authenticatedUser.name,
+      experience: authenticatedUser.experience,
+      usdBalance: authenticatedUser.usdBalance,
+      kycStatus: authenticatedUser.kycStatus,
+      role: authenticatedUser.role,
+      status: authenticatedUser.status,
+      createdAt: authenticatedUser.createdAt.toISOString(),
     },
     message: "Login successful",
   });

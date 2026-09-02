@@ -9,4 +9,6 @@
 export interface LoginRequest {
   email: string;
   password: string;
+  /** Current IANA timezone reported by the user's device, such as Africa/Lagos. */
+  timezone?: string;
 }

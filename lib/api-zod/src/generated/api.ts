@@ -24,6 +24,12 @@ export const RegisterBody = zod.object({
   phone: zod.string(),
   country: zod.string(),
   dateOfBirth: zod.string(),
+  timezone: zod
+    .string()
+    .optional()
+    .describe(
+      "Current IANA timezone reported by the user's device, such as Africa\/Lagos.",
+    ),
 });
 
 /**
@@ -32,6 +38,12 @@ export const RegisterBody = zod.object({
 export const LoginBody = zod.object({
   email: zod.string(),
   password: zod.string(),
+  timezone: zod
+    .string()
+    .optional()
+    .describe(
+      "Current IANA timezone reported by the user's device, such as Africa\/Lagos.",
+    ),
 });
 
 export const LoginResponse = zod.object({

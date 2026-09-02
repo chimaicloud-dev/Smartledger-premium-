@@ -24,11 +24,15 @@ export interface RegisterRequest {
   phone: string;
   country: string;
   dateOfBirth: string;
+  /** Current IANA timezone reported by the user's device, such as Africa/Lagos. */
+  timezone?: string;
 }
 
 export interface LoginRequest {
   email: string;
   password: string;
+  /** Current IANA timezone reported by the user's device, such as Africa/Lagos. */
+  timezone?: string;
 }
 
 export type UserKycStatus = (typeof UserKycStatus)[keyof typeof UserKycStatus];

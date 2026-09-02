@@ -800,6 +800,9 @@ components:
           type: string
         dateOfBirth:
           type: string
+        timezone:
+          type: string
+          description: Current IANA timezone reported by the user's device, such as Africa/Lagos.
       required:
         - email
         - password
@@ -815,6 +818,9 @@ components:
           type: string
         password:
           type: string
+        timezone:
+          type: string
+          description: Current IANA timezone reported by the user's device, such as Africa/Lagos.
       required:
         - email
         - password

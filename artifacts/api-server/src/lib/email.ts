@@ -263,14 +263,14 @@ function fmtDate(d: Date = new Date(), timezone?: string | null): string {
 
 // ---------- specific notifications ----------
 
-export function sendWelcomeEmail(to: string, name: string): void {
+export function sendWelcomeEmail(to: string, name: string, timezone?: string | null): void {
   const html = renderEmail({
     title: "Welcome to SmartLedger Premium",
     recipientName: name,
     intro: "Your account has been created successfully. You can now deposit funds, trade crypto and forex assets, and track your portfolio in real time.",
     rows: [
       { label: "Status", value: "Active" },
-      { label: "Registered At", value: fmtDate() },
+      { label: "Registered At", value: fmtDate(new Date(), timezone) },
     ],
     outro: "If you did not create this account, please contact our support team immediately.",
   });
